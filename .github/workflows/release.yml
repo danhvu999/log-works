@@ -27,7 +27,7 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
-      - name: Pack (runs prepack: typecheck + lint + test + build)
+      - name: "Pack (runs prepack: typecheck + lint + test + build)"
         run: bun pm pack
 
       - name: Create GitHub Release
