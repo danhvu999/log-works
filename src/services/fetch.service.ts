@@ -1,0 +1,70 @@
+import { loadConfig, resolveStoragePath } from "../config/config.manager.ts";
+import { AppError } from "../errors.ts";
+import type { FetchSummary, LogWorksConfig } from "../types/index.ts";
+import { fetchSlackMessages } from "./slack.service.ts";
+import {
+  readDatabase,
+  upsertRawMessages,
+  writeDatabase,
+} from "./storage.service.ts";
+
+export interface FetchWorkLogsInput {
+  from?: string;
+  to?: string;
+  channel?: string;
+  config?: LogWorksConfig;
+  now?: Date;
+}
+
+export async function fetchWorkLogs(
+  input: FetchWorkLogsInput = {},
+): Promise<FetchSummary> {
+  const config = input.config ?? (await loadConfig());
+  const slack = config.slack;
+
+  if (!slack?.userToken) {
+    throw new AppError("config-missing", "Missing slack.userToken");
+  }
+
+  if (!slack.userId) {
+    throw new AppError("config-missing", "Missing slack.userId");
+  }
+
+  const channels = input.channel ? [input.channel] : (slack.channels ?? []);
+  if (channels.length === 0) {
+    throw new AppError("config-missing", "Missing slack.channels");
+  }
+
+  const storagePath = resolveStoragePath(config);
+  const messages = await fetchSlackMessages({
+    channel: input.channel,
+    channels,
+    from: input.from,
+    now: input.now,
+    to: input.to,
+    userId: slack.userId,
+    userToken: slack.userToken,
+  });
+  const database = await readDatabase(storagePath);
+  const result = upsertRawMessages(database, messages);
+
+  result.database.meta.lastFetchAt = new Date().toISOString();
+  result.database.meta.lastFetchCursor = {
+    ...(result.database.meta.lastFetchCursor ?? {}),
+  };
+  for (const message of messages) {
+    result.database.meta.lastFetchCursor[message.channel] = message.ts;
+  }
+
+  await writeDatabase(storagePath, result.database);
+
+  return {
+    fetched: messages.length,
+    inserted: result.inserted,
+    skipped: result.skipped,
+    channels,
+    from: input.from,
+    to: input.to,
+    storagePath,
+  };
+}

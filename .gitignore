@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+.cache/
+.env
+.env.*
+!.env.example
+.log-works/
+tmp/
+*.log
+.mcp.json
+fixtures/netdok/*

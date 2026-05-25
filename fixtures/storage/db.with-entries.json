@@ -1,0 +1,45 @@
+{
+  "rawMessages": [
+    {
+      "ts": "1716200000.000100",
+      "channel": "CWORKLOG",
+      "userId": "U123LOG",
+      "text": "Implemented Slack fetch foundation",
+      "raw": {
+        "type": "message",
+        "channel": "CWORKLOG",
+        "user": "U123LOG",
+        "ts": "1716200000.000100",
+        "text": "Implemented Slack fetch foundation"
+      },
+      "fetchedAt": "2026-05-20T12:00:00.000Z"
+    }
+  ],
+  "workLogs": [
+    {
+      "id": "1716200000.000100#0",
+      "sourceTs": "1716200000.000100",
+      "date": "2026-05-20",
+      "project": "log-works",
+      "text": "Implemented Slack fetch foundation",
+      "hours": 2,
+      "status": "pending"
+    },
+    {
+      "id": "1716200000.000100#1",
+      "sourceTs": "1716200000.000100",
+      "date": "2026-05-20",
+      "project": "log-works",
+      "text": "Reviewed Netdok posting contract",
+      "hours": 1,
+      "status": "sent",
+      "postedAt": "2026-05-20T12:30:00.000Z"
+    }
+  ],
+  "meta": {
+    "lastFetchAt": "2026-05-20T12:00:00.000Z",
+    "lastFetchCursor": {
+      "CWORKLOG": "1716200000.000100"
+    }
+  }
+}

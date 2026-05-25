@@ -1,0 +1,34 @@
+[
+  {
+    "ts": "1716000000.000001",
+    "channel": "CWORKLOG",
+    "userId": "U123LOG",
+    "text": "Debrief:\nMetabase:\n• Worked on Duplicate PostgreSQL Sync Pipeline [8h] <https://example.com/issue/18>\n    ◦ Add TypeScript support\n    ◦ Add ClickHouse client\nVenulog\n• Finished P1 <https://example.com/issue/3586|#3586> [1h]\n• Reviewed PR with no hours",
+    "raw": {},
+    "fetchedAt": "2026-05-18T00:00:00.000Z"
+  },
+  {
+    "ts": "1716100000.000002",
+    "channel": "CWORKLOG",
+    "userId": "U123LOG",
+    "text": "Brief:\nMetabase\n• Plan migration [2h]\n• Will pair with team",
+    "raw": {},
+    "fetchedAt": "2026-05-19T00:00:00.000Z"
+  },
+  {
+    "ts": "1716200000.000003",
+    "channel": "CWORKLOG",
+    "userId": "U123LOG",
+    "text": "Debrief: Yesterday\nVenulog\n• Shipped feature [3h]\nBrief:\nVenulog\n• Plan next sprint [4h]",
+    "raw": {},
+    "fetchedAt": "2026-05-20T00:00:00.000Z"
+  },
+  {
+    "ts": "1716300000.000004",
+    "channel": "CWORKLOG",
+    "userId": "U123LOG",
+    "text": "Debrief:\n• Bullet before any project [0.5h]\nMetabase\n• Has project [1h]",
+    "raw": {},
+    "fetchedAt": "2026-05-21T00:00:00.000Z"
+  }
+]

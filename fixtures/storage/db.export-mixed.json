@@ -1,0 +1,67 @@
+{
+  "rawMessages": [
+    {
+      "ts": "1716200000.000100",
+      "channel": "CWORKLOG",
+      "userId": "U123LOG",
+      "text": "Implemented Slack fetch foundation\nReviewed Netdok posting contract",
+      "raw": {},
+      "fetchedAt": "2026-05-18T12:00:00.000Z"
+    }
+  ],
+  "workLogs": [
+    {
+      "id": "1716200000.000100#0",
+      "sourceTs": "1716200000.000100",
+      "date": "2026-05-18",
+      "project": "Metabase",
+      "text": "Implemented Slack fetch foundation",
+      "hours": 4,
+      "status": "pending"
+    },
+    {
+      "id": "1716200000.000100#1",
+      "sourceTs": "1716200000.000100",
+      "date": "2026-05-18",
+      "project": "Venulog",
+      "text": "Reviewed Netdok posting contract",
+      "hours": 1.5,
+      "status": "sent",
+      "postedAt": "2026-05-18T12:30:00.000Z"
+    },
+    {
+      "id": "1716300000.000200#0",
+      "sourceTs": "1716300000.000200",
+      "date": "2026-05-20",
+      "project": "Metabase",
+      "text": "Wrote tests, refactored, shipped",
+      "hours": 3,
+      "status": "pending"
+    },
+    {
+      "id": "1716400000.000300#0",
+      "sourceTs": "1716400000.000300",
+      "date": "2026-05-22",
+      "project": "Venulog",
+      "text": "Pair, debug, commit",
+      "hours": null,
+      "status": "failed",
+      "lastError": "netdok 500"
+    },
+    {
+      "id": "1716500000.000400#0",
+      "sourceTs": "1716500000.000400",
+      "date": "2026-05-24",
+      "project": "Venulog",
+      "text": "Field with, comma and \"quote\" and\nnewline",
+      "hours": 0.5,
+      "status": "pending"
+    }
+  ],
+  "meta": {
+    "lastFetchAt": "2026-05-24T12:00:00.000Z",
+    "lastFetchCursor": {
+      "CWORKLOG": "1716500000.000400"
+    }
+  }
+}

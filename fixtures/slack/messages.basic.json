@@ -1,0 +1,23 @@
+[
+  {
+    "type": "message",
+    "channel": "CWORKLOG",
+    "user": "U123LOG",
+    "ts": "1716200000.000100",
+    "text": "2026-05-20\nImplemented Slack fetch foundation\nReviewed Netdok posting contract"
+  },
+  {
+    "type": "message",
+    "channel": "CWORKLOG",
+    "user": "U999OTHER",
+    "ts": "1716200060.000200",
+    "text": "This should be ignored by the author filter"
+  },
+  {
+    "type": "message",
+    "channel": "DWORKLOG",
+    "user": "U123LOG",
+    "ts": "1716286400.000300",
+    "text": "Wrote contract tests"
+  }
+]

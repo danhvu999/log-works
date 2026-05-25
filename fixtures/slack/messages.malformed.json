@@ -1,0 +1,26 @@
+[
+  {
+    "ts": "1716400000.000001",
+    "channel": "CWORKLOG",
+    "userId": "U123LOG",
+    "text": "Today I shipped a fix on Venulog: invoice line bug took maybe 2 hours. Also checked Metabase pipeline.",
+    "raw": {},
+    "fetchedAt": "2026-05-25T00:00:00.000Z"
+  },
+  {
+    "ts": "1716400001.000002",
+    "channel": "CWORKLOG",
+    "userId": "U123LOG",
+    "text": "Debrief:\nVenulog\n- Fixed dashboard regression\n- Reviewed PR #42",
+    "raw": {},
+    "fetchedAt": "2026-05-25T00:00:00.000Z"
+  },
+  {
+    "ts": "1716400002.000003",
+    "channel": "CWORKLOG",
+    "userId": "U123LOG",
+    "text": "Debrief:\n• Worked on something but forgot to write hours",
+    "raw": {},
+    "fetchedAt": "2026-05-25T00:00:00.000Z"
+  }
+]

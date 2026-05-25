@@ -52,16 +52,35 @@ Stack chosen for v1. Swappable — each layer isolated behind a service so a sin
 - Mature, typed, supports nested subcommands, custom help, and option parsing.
 - Handlers stay thin — they only parse flags and delegate to service functions.
 
+## 4a. CSV export — hand-rolled writer
+
+- No CSV library dependency. `src/services/export.service.ts` ships a small RFC 4180 writer (~30 lines): quote a field when it contains `,`, `"`, `\r`, or `\n`; double-up inner `"`.
+- Trade-off vs `papaparse` / `csv-stringify`: zero dep weight, schema is fixed (nine columns: `id, date, project, hours, text, status, lastError, postedAt, sourceTs`), volumes small (single user). Swap to a library only if the format grows or streaming becomes a concern.
+
+## 4c. XLSX export — `exceljs`
+
+- Runtime dep: `exceljs@^4` (~1MB). Required only when `--format xlsx` is invoked; loaded lazily via dynamic `import()` so csv/json paths don't pay the import cost.
+- Reason: Google Sheets import via *File → Open* preserves frozen headers, bold group rows, auto-filter, and live `SUM` formulas — none of which CSV can carry. Hand-rolling the OOXML zip from scratch would dwarf the lib.
+- Output is a `Uint8Array` (zip-shaped, magic bytes `0x50 0x4b`).
+
+## 4b. Debrief parser — rule-based, no AI
+
+- `src/services/parser.service.ts` is pure-function, regex-driven. No LLM, no external service. This is deliberate: REQUIREMENTS §6 puts in-tool AI parsing out of scope; the structure of work-log messages is regular enough that a small rule set is sufficient and trivially testable.
+- Rules: section split on `^(Brief|Debrief)\b`, bullet on `^•`, sub-bullet on `^◦`, hours via `\[(\d+(?:\.\d+)?)h\]$`, link markup via `<url|label>` / `<url>`. See `docs/REQUIREMENTS.md` FR7 for the full contract.
+- If an agent later wants AI-assisted parsing for messages that don't fit the format, the right home is a separate command (e.g. `derive --strategy ai`) and a new optional dep, behind the same `WorkLogEntry` schema.
+
 ## 5. HTTP — native `fetch`
 
 - Bun's built-in `fetch`. No `axios`, no `node-fetch`.
 - Slack client: use **`@slack/web-api`** (typed, handles pagination + rate-limit headers) rather than hand-rolling. Decision revisit-able if dep size becomes an issue.
-- Netdok client: thin native-`fetch` wrapper. Placeholder until user supplies curl example.
+- Netdok client: thin native-`fetch` wrapper in `src/services/netdok.service.ts`. Auth via `x-api-key` + `workspace-id` headers. `createNetdokClient(config, fetchImpl?)` accepts an injected `fetch` for tests.
 
-## 6. MCP (future, not installed in v1)
+## 6. MCP server
 
-- **`@modelcontextprotocol/sdk`** — separate entry point `src/mcp.ts`, reuses the same `services/*` modules as the CLI.
-- v1 only enforces that services are CLI-handler-free so MCP can drop in.
+- **`@modelcontextprotocol/sdk`** (^1.29) — stdio transport. Entry point `src/mcp.ts` registers one tool per CLI command via `server.registerTool(name, config, handler)` and reuses the same `services/*` modules as the CLI.
+- Tool input schemas use Zod (same `zod@^3` dep as config validation). Tool outputs are the existing service result types serialised as JSON in a single text content block, plus `structuredContent` for clients that prefer typed access.
+- Errors return `{ isError: true, content: [...] }` so the typed `code` (e.g. `netdok-http`, `config-missing`) is visible to the client.
+- Bin entries: `log-works` (CLI) and `log-works-mcp` (MCP server). `bun link` exposes both.
 
 ## 7. Dev tooling
 
@@ -74,29 +93,33 @@ Stack chosen for v1. Swappable — each layer isolated behind a service so a sin
 
 ```
 src/
-  cli.ts                    # commander entry — wires subcommands
+  cli.ts                          # commander entry — wires subcommands
   commands/
     config.ts
+    derive.ts
+    export.ts
     fetch.ts
-    list.ts
-    post.ts
-    sync.ts
+    netdok.ts
   services/
-    slack.service.ts        # @slack/web-api wrapper
-    netdok.service.ts       # placeholder HTTP client
-    storage.service.ts      # lowdb wrapper, exports typed DB ops
-    sync.service.ts         # orchestrates fetch → store → post
+    slack.service.ts              # @slack/web-api wrapper
+    netdok.service.ts             # native-fetch Netdok client
+    netdok-tasks.service.ts       # weekly task sync
+    netdok-worklogs.service.ts    # worklog sync with dedup
+    storage.service.ts            # JSON file DB, typed DB ops
+    derive.service.ts             # rawMessages → workLogs parser orchestrator
+    export.service.ts             # csv/json/xlsx exporters
+    parser.service.ts             # rule-based debrief parser
+    fetch.service.ts              # Slack fetch orchestrator
+  utils/
+    iso-week.ts
   config/
-    config.manager.ts       # read/write ~/.log-works/config.json
-    schema.ts               # zod schema for config
+    config.manager.ts             # read/write ~/.log-works/config.json
   types/
     index.ts
 package.json
 tsconfig.json
 biome.json
-README.md
-REQUIREMENTS.md
-TECHNOLOGIES.md
+docs/
 ```
 
 ## 9. Swap-ability notes
