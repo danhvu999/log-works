@@ -4,19 +4,27 @@ Sync Slack work-log debriefs into a local JSON store and (optionally) post them 
 
 ## Install
 
-Requires [Bun](https://bun.sh).
+Grab the latest release tarball URL from <https://github.com/danhvu999/log-works/releases> (e.g. `https://github.com/danhvu999/log-works/releases/download/v0.1.0/log-works-0.1.0.tgz`).
+
+**Bun:**
 
 ```bash
-bun add -g github:danhvu999/log-works
+bun add -g https://github.com/danhvu999/log-works/releases/download/v0.1.0/log-works-0.1.0.tgz
 ```
 
-This exposes `log-works` and `log-works-mcp` on your PATH.
-
-To pin a release:
+**Node ≥20:**
 
 ```bash
-bun add -g github:danhvu999/log-works#v0.1.0
+npm i -g https://github.com/danhvu999/log-works/releases/download/v0.1.0/log-works-0.1.0.tgz
 ```
+
+**Node ≥20, ephemeral (no install):**
+
+```bash
+npx -y https://github.com/danhvu999/log-works/releases/download/v0.1.0/log-works-0.1.0.tgz log-works-mcp
+```
+
+All three expose `log-works` and `log-works-mcp` on your PATH. The tarball ships pre-built — no `prepare`/`postinstall` runs on your machine, so no `bun pm trust` step needed.
 
 ## Wire into Claude Code
 
