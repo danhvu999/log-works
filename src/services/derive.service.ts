@@ -4,6 +4,7 @@ import type {
   LogWorksConfig,
   RawSlackMessage,
 } from "../types/index.ts";
+import { computeNetdokHint } from "./netdok-hint.service.ts";
 import {
   applyDateHint,
   extractDateHint,
@@ -28,6 +29,7 @@ export async function deriveWorkLogs(
   let processed = 0;
   let inserted = 0;
   let skipped = 0;
+  const projectsInRange = new Set<string>();
 
   for (const message of database.rawMessages) {
     const date = effectiveDateForMessage(message);
@@ -36,6 +38,7 @@ export async function deriveWorkLogs(
 
     processed += 1;
     for (const parsed of parseMessageText(message.text)) {
+      projectsInRange.add(parsed.project);
       const id = `${message.ts}#${parsed.index}`;
       if (existing.has(id)) {
         skipped += 1;
@@ -58,6 +61,8 @@ export async function deriveWorkLogs(
 
   await writeDatabase(storagePath, database);
 
+  const netdokHint = computeNetdokHint(config, projectsInRange);
+
   return {
     processed,
     inserted,
@@ -65,6 +70,7 @@ export async function deriveWorkLogs(
     storagePath,
     from: input.from,
     to: input.to,
+    ...(netdokHint ? { netdokHint } : {}),
   };
 }
 

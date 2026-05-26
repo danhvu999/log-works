@@ -27,6 +27,7 @@ import {
   clearNetdokStorage,
   resetStorage,
 } from "./services/storage-admin.service.ts";
+import { summarizeStorage } from "./services/summary.service.ts";
 
 type ToolResult = {
   content: Array<{ type: "text"; text: string }>;
@@ -85,7 +86,11 @@ When you do use the server, follow the two-stage setup protocol. Before invoking
 - "setup-netdok-apply": Netdok base keys are set; assemble project mappings (use the readiness result's knownLocalProjects) and call log_works_config_setup_netdok_apply. For each project decide: weekly-wrapper mode (set sprintId + statusId) OR pinned-task mode (set pinnedTaskId, omit sprintId/statusId). Modes can be mixed across projects in one call.
 - "ready": call log_works_netdok_tasks / log_works_netdok_worklogs as the user requests.
 
-Never bundle Slack and Netdok setup in one user-facing prompt. Slack always comes first.`;
+Never bundle Slack and Netdok setup in one user-facing prompt. Slack always comes first.
+
+After log_works_fetch or log_works_derive succeeds, inspect the optional \`netdokHint\` field on the result. When present, it means either Netdok is not yet configured (\`configured: false\`) or some projects in the just-processed range are missing from \`netdok.projects\` (\`unmappedProjects\`). Prompt the user to run the Netdok setup flow for those projects — still without bundling Slack prompts.
+
+For setup or planning questions ("what projects are in my logs?", "how many hours did I log on X?"), call log_works_summary instead of exporting + post-processing. It returns aggregate counts and per-project hours straight from the local DB.`;
 
 export function createServer(): McpServer {
   const server = new McpServer(
@@ -132,7 +137,7 @@ export function createServer(): McpServer {
     {
       title: "Fetch Slack debriefs",
       description:
-        "Pull Slack messages from configured channels into local storage. Idempotent on Slack `ts`.",
+        "Pull Slack messages from configured channels into local storage. Idempotent on Slack `ts`. The result may include an optional `netdokHint` field listing projects in the just-fetched range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup.",
       inputSchema: z.object({
         from: z
           .string()
@@ -160,7 +165,7 @@ export function createServer(): McpServer {
     {
       title: "Derive work-logs",
       description:
-        "Parse local raw Slack messages into structured WorkLogEntry rows. Idempotent on ${ts}#${bulletIndex}.",
+        "Parse local raw Slack messages into structured WorkLogEntry rows. Idempotent on ${ts}#${bulletIndex}. The result may include an optional `netdokHint` field listing projects in the just-derived range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup.",
       inputSchema: z.object({
         from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
         to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),
@@ -193,6 +198,20 @@ export function createServer(): McpServer {
         const result = await exportWorkLogs({ ...rest, out: outPath });
         return result.summary;
       }),
+  );
+
+  server.registerTool(
+    "log_works_summary",
+    {
+      title: "Summarise local database",
+      description:
+        "Aggregate locally stored work-logs into totals + per-project stats (entries, hours, date range). Use this for setup/planning questions ('what projects are in my logs?', 'how many hours per project last week?') instead of exporting and post-processing externally. Read-only.",
+      inputSchema: z.object({
+        from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
+        to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),
+      }).shape,
+    },
+    async (input) => run(() => summarizeStorage(input)),
   );
 
   server.registerTool(

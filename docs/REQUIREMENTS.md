@@ -55,7 +55,7 @@ Local storage maintenance commands, also preview by default and only mutate when
 
 - Each command's logic lives in a callable service function, decoupled from the CLI handler.
 - `src/mcp.ts` is the MCP entry point and exposes one tool per CLI command, named `log_works_<command_with_underscores>`. Stdio transport via `@modelcontextprotocol/sdk`.
-- Tool inputs use Zod schemas mirroring CLI flags; tool outputs reuse the existing service result types (`FetchSummary`, `DeriveSummary`, `ExportSummary`, `NetdokTaskSyncResult`, `NetdokWorklogSyncResult`, `StorageClearNetdokSummary`, `StorageResetSummary`, redacted `LogWorksConfig`).
+- Tool inputs use Zod schemas mirroring CLI flags; tool outputs reuse the existing service result types (`FetchSummary`, `DeriveSummary`, `ExportSummary`, `SummaryResult`, `NetdokTaskSyncResult`, `NetdokWorklogSyncResult`, `StorageClearNetdokSummary`, `StorageResetSummary`, redacted `LogWorksConfig`).
 - Errors are surfaced as `{ isError: true, content: [{ type: "text", text: <errorResponse JSON> }] }` so MCP clients see the same typed `code`/`message` shape as the CLI's `--json` errors.
 - `log_works_export` requires `outPath` — MCP cannot stream binary xlsx; the file is written to disk and the tool returns the summary.
 
@@ -100,6 +100,23 @@ Local storage maintenance commands, also preview by default and only mutate when
 - Optional `--from` / `--to` (`YYYY-MM-DD`, inclusive) filters which raw messages are processed by their derived date.
 - Date derivation: take the integer part of Slack `ts` as Unix seconds, format the UTC date as `YYYY-MM-DD`. Time-zone resolution is a separate open question (FR §7).
 - `--json` emits `{ processed, inserted, skipped, storagePath, from?, to? }`.
+
+### FR8 — Local DB summary
+
+- Standalone command `log-works summary` (MCP: `log_works_summary`). Pure local read; no Slack or Netdok calls.
+- Aggregates the stored DB into:
+  - `totals` — `rawMessages`, `workLogs`, `totalHours`, `uniqueProjects`, `dateMin`, `dateMax`.
+  - `projects[]` — per-project `entries`, `hours` (null hours count as zero), `dateMin`, `dateMax`. Sorted by `hours` desc, ties broken by `project` asc.
+- Optional `--from` / `--to` (`YYYY-MM-DD`, inclusive) scope the aggregation. `rawMessages` uses the same effective-date logic as `derive`; `workLogs` filter by `entry.date`.
+- Exists so agents can plan Netdok project mappings (during `setup-netdok-apply`) or answer "what did I log?" questions without exporting to disk and post-processing externally.
+
+### FR-HINT — Post-success Netdok hint
+
+- `fetch` and `derive` may include an optional `netdokHint` field in their result JSON.
+- Computed against the projects observed in the **just-processed range** (not the whole DB), so silent successes stay silent.
+- `netdokHint` is emitted when either (a) any of `netdok.apiKey`, `netdok.workspaceId`, `netdok.profileId` is missing, OR (b) at least one project in the range is missing from `netdok.projects`. When neither is true, the field is omitted.
+- Shape: `{ configured: boolean, unmappedProjects: string[], suggestion?: string }`. `suggestion` re-uses the same wording branches as `config check` so the two tools agree.
+- Informational only: `netdok tasks` / `netdok worklogs` still raise `config-missing` strictly when invoked without the required keys.
 
 ### FR-SETUP — Guided config setup (external agent, Slack-first)
 
@@ -149,6 +166,7 @@ log-works derive [--from <date>] [--to <date>]
 log-works parse list-unparsed [--from <date>] [--to <date>] [--no-partial]
 log-works parse ingest [--file <path>]
 log-works export --format <csv|json|xlsx> [--from <date>] [--to <date>] [--status <s>] [--out <file>]
+log-works summary [--from <date>] [--to <date>]
 log-works netdok tasks    [--from <date>] [--to <date>] [--apply]
 log-works netdok worklogs [--from <date>] [--to <date>] [--apply]
 log-works storage clear-netdok [--from <date>] [--to <date>] [--apply]

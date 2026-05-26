@@ -1,6 +1,8 @@
 import { loadConfig, resolveStoragePath } from "../config/config.manager.ts";
 import { AppError } from "../errors.ts";
 import type { FetchSummary, LogWorksConfig } from "../types/index.ts";
+import { computeNetdokHint } from "./netdok-hint.service.ts";
+import { evaluateMessage } from "./parser.service.ts";
 import { fetchSlackMessages } from "./slack.service.ts";
 import {
   readDatabase,
@@ -58,6 +60,14 @@ export async function fetchWorkLogs(
 
   await writeDatabase(storagePath, result.database);
 
+  const projectsInRange = new Set<string>();
+  for (const message of messages) {
+    for (const entry of evaluateMessage(message.text).entries) {
+      projectsInRange.add(entry.project);
+    }
+  }
+  const netdokHint = computeNetdokHint(config, projectsInRange);
+
   return {
     fetched: messages.length,
     inserted: result.inserted,
@@ -66,5 +76,6 @@ export async function fetchWorkLogs(
     from: input.from,
     to: input.to,
     storagePath,
+    ...(netdokHint ? { netdokHint } : {}),
   };
 }

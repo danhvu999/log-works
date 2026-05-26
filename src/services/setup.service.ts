@@ -20,6 +20,7 @@ import type {
   SlackReadinessResult,
   SlackSetupSummary,
 } from "../types/index.ts";
+import { netdokSuggestion } from "./netdok-hint.service.ts";
 import { type NetdokClient, createNetdokClient } from "./netdok.service.ts";
 import { UNSPECIFIED_PROJECT, evaluateMessage } from "./parser.service.ts";
 import { readDatabase } from "./storage.service.ts";
@@ -344,19 +345,11 @@ export async function checkNetdokReadiness(
     missing.includes("netdok.workspaceId") ||
     missing.includes("netdok.profileId");
   const noMappings = mappedLocalProjects.length === 0;
-
-  let suggestion: string;
-  if (baseKeysMissing) {
-    suggestion =
-      "Call log_works_config_setup_netdok_discover (start with apiKey only).";
-  } else if (noMappings) {
-    suggestion =
-      "Call log_works_config_setup_netdok_apply with at least one project mapping.";
-  } else if (unmappedLocalProjects.length > 0) {
-    suggestion = `Ready. Optional: map remaining projects: ${unmappedLocalProjects.join(", ")}.`;
-  } else {
-    suggestion = "Ready. Run netdok tasks --apply.";
-  }
+  const suggestion = netdokSuggestion({
+    baseKeysMissing,
+    noMappings,
+    unmappedProjects: unmappedLocalProjects,
+  });
 
   return {
     ready: missing.length === 0,

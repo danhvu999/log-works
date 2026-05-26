@@ -19,6 +19,7 @@ describe("CLI contract", () => {
       "parse list-unparsed",
       "parse ingest",
       "export",
+      "summary",
       "netdok tasks",
       "netdok worklogs",
       "storage clear-netdok",

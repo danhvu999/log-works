@@ -37,6 +37,7 @@ describe("MCP wrapper", () => {
         "log_works_netdok_worklogs",
         "log_works_storage_clear_netdok",
         "log_works_storage_reset",
+        "log_works_summary",
         "log_works_unparsed",
       ].sort(),
     );

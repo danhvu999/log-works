@@ -69,6 +69,67 @@ describe("derive service", () => {
     expect(second.skipped).toBe(first.inserted);
   });
 
+  test("attaches netdokHint when Netdok is unconfigured", async () => {
+    const messages = await loadDebriefFixture();
+    const dbPath = await makeTempDb(messages);
+
+    const summary = await deriveWorkLogs({
+      config: { storage: { path: dbPath } },
+    });
+
+    expect(summary.netdokHint).toBeDefined();
+    expect(summary.netdokHint?.configured).toBe(false);
+    expect(summary.netdokHint?.unmappedProjects).toEqual(
+      expect.arrayContaining(["Metabase", "Venulog"]),
+    );
+    expect(summary.netdokHint?.suggestion).toMatch(/setup_netdok_discover/);
+  });
+
+  test("attaches netdokHint listing only unmapped projects when partly mapped", async () => {
+    const messages = await loadDebriefFixture();
+    const dbPath = await makeTempDb(messages);
+
+    const summary = await deriveWorkLogs({
+      config: {
+        storage: { path: dbPath },
+        netdok: {
+          apiKey: "k",
+          workspaceId: "w",
+          profileId: "p",
+          projects: {
+            Venulog: { projectId: "proj-v" },
+          },
+        },
+      },
+    });
+
+    expect(summary.netdokHint).toBeDefined();
+    expect(summary.netdokHint?.configured).toBe(true);
+    expect(summary.netdokHint?.unmappedProjects).toEqual(["Metabase"]);
+  });
+
+  test("omits netdokHint when Netdok is fully configured and every project mapped", async () => {
+    const messages = await loadDebriefFixture();
+    const dbPath = await makeTempDb(messages);
+
+    const summary = await deriveWorkLogs({
+      config: {
+        storage: { path: dbPath },
+        netdok: {
+          apiKey: "k",
+          workspaceId: "w",
+          profileId: "p",
+          projects: {
+            Venulog: { projectId: "proj-v" },
+            Metabase: { projectId: "proj-m" },
+          },
+        },
+      },
+    });
+
+    expect(summary.netdokHint).toBeUndefined();
+  });
+
   test("--from / --to filter raw messages by date", async () => {
     const messages = await loadDebriefFixture();
     const dbPath = await makeTempDb(messages);

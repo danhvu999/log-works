@@ -15,6 +15,8 @@
 - `src/services/derive.service.ts` owns the raw → work-log derivation step (loads the DB, runs the parser, upserts entries idempotently with `source: "rule"`).
 - `src/services/smart-parse.service.ts` owns the external-agent loop: `listUnparsedMessages` surfaces raw messages where the rule parser produced 0 entries or a partial result; `ingestSmartEntries` validates a structured array supplied by an MCP client and upserts rows with `source: "smart"`.
 - `src/services/export.service.ts` owns reading the local database and rendering exports (CSV and JSON inline; XLSX via the sibling module). Dispatches on `--format`.
+- `src/services/summary.service.ts` owns the read-only aggregate over local work-logs (totals, per-project hours and counts) used by `log-works summary` / `log_works_summary`.
+- `src/services/netdok-hint.service.ts` owns the post-success Netdok readiness hint attached to `FetchSummary` / `DeriveSummary`. Suggestion strings are shared with `checkNetdokReadiness` (via `netdokSuggestion`) so `config check` and `netdokHint` stay in lock-step.
 - `src/services/export-xlsx.ts` owns the XLSX (Google-Sheets-friendly) renderer. `exceljs` is loaded lazily via dynamic `import` so csv/json paths pay no cost.
 - `src/output.ts` owns success and error response shapes.
 

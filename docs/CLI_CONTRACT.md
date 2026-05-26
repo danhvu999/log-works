@@ -16,6 +16,7 @@ log-works config check
 log-works parse list-unparsed [--from <date>] [--to <date>] [--no-partial]
 log-works parse ingest [--file <path>]
 log-works export --format <csv|json|xlsx> [--from <date>] [--to <date>] [--status <pending|sent|failed>] [--out <file>]
+log-works summary [--from <date>] [--to <date>]
 log-works netdok tasks    [--from <date>] [--to <date>] [--apply]
 log-works netdok worklogs [--from <date>] [--to <date>] [--apply]
 log-works storage clear-netdok [--from <date>] [--to <date>] [--apply]
@@ -36,6 +37,42 @@ Every command above is also exposed by the MCP server (`src/mcp.ts`) as a tool n
 - `log_works_export` requires `outPath` (no stdout pipe in MCP).
 
 Tool outputs are the same JSON shapes documented below; errors use `{ isError: true, content: [{ type: "text", text: <errorResponse JSON> }] }` with the same `code`/`message` strings.
+
+### `summary` JSON
+
+```json
+{
+  "totals": {
+    "rawMessages": 9,
+    "workLogs": 22,
+    "totalHours": 36.5,
+    "uniqueProjects": 2,
+    "dateMin": "2026-05-18",
+    "dateMax": "2026-05-22"
+  },
+  "projects": [
+    {
+      "project": "Venulog",
+      "entries": 20,
+      "hours": 27.5,
+      "dateMin": "2026-05-18",
+      "dateMax": "2026-05-21"
+    },
+    {
+      "project": "Metabase",
+      "entries": 2,
+      "hours": 9,
+      "dateMin": "2026-05-21",
+      "dateMax": "2026-05-22"
+    }
+  ],
+  "storagePath": "~/.log-works/db.json",
+  "from": "2026-05-18",
+  "to": "2026-05-24"
+}
+```
+
+Read-only. Aggregates the local DB. `rawMessages` is filtered with the same effective-date semantics as `derive`. `workLogs` are filtered by `entry.date`. Entries with `hours: null` count as zero hours but still bump `entries`. `projects` is sorted by `hours` desc, then `project` asc. `dateMin`/`dateMax` are `null` when the filtered set is empty.
 
 ### `netdok tasks` JSON
 
@@ -90,6 +127,25 @@ Projects with `netdok.projects.<name>.pinnedTaskId` set never appear in `weeks` 
   "storagePath": "~/.log-works/db.json"
 }
 ```
+
+### Post-success `netdokHint` (on `fetch` and `derive`)
+
+When `fetch` or `derive` succeeds, the JSON result may include an optional `netdokHint` field:
+
+```json
+{
+  "netdokHint": {
+    "configured": false,
+    "unmappedProjects": ["Metabase", "Venulog"],
+    "suggestion": "Call log_works_config_setup_netdok_discover (start with apiKey only)."
+  }
+}
+```
+
+- `configured` — `false` when any of `netdok.apiKey`, `netdok.workspaceId`, `netdok.profileId` are missing.
+- `unmappedProjects` — projects observed in the just-processed range that are not present in `netdok.projects`. Sorted, deduplicated, `_unspecified` filtered out.
+- `suggestion` — same wording as the matching `config check` branch.
+- The field is **omitted entirely** when Netdok is fully configured AND every project in range is already mapped, so silent successes stay silent.
 
 ### `config setup slack` JSON
 

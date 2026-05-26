@@ -27,6 +27,7 @@ import {
   clearNetdokStorage,
   resetStorage,
 } from "./services/storage-admin.service.ts";
+import { summarizeStorage } from "./services/summary.service.ts";
 import type {
   CommandSpec,
   ConfigReadinessResult,
@@ -36,6 +37,7 @@ import type {
   NetdokApplyInput,
   NetdokApplySummary,
   NetdokDiscoverResult,
+  NetdokHint,
   NetdokTaskSyncResult,
   NetdokWorklogSyncResult,
   SlackSetupSummary,
@@ -43,6 +45,7 @@ import type {
   SmartIngestSummary,
   StorageClearNetdokSummary,
   StorageResetSummary,
+  SummaryResult,
   UnparsedListResult,
 } from "./types/index.ts";
 
@@ -137,6 +140,16 @@ export const COMMAND_SPECS: CommandSpec[] = [
       { name: "--to", takesValue: true },
       { name: "--status", takesValue: true },
       { name: "--out", takesValue: true },
+    ],
+  },
+  {
+    name: "summary",
+    summary:
+      "Aggregate local DB: unique projects, total hours per project, counts",
+    options: [
+      ...COMMON_OPTIONS,
+      { name: "--from", takesValue: true },
+      { name: "--to", takesValue: true },
     ],
   },
   {
@@ -380,6 +393,22 @@ export function createProgram(): Command {
       emitExport(result, Boolean(options.json), Boolean(options.out));
     });
 
+  program
+    .command("summary")
+    .description(
+      "Aggregate local DB into unique projects and per-project hour totals",
+    )
+    .option("--from <date>", "Start date inclusive (YYYY-MM-DD)")
+    .option("--to <date>", "End date inclusive (YYYY-MM-DD)")
+    .option("--json", "Print machine-readable JSON")
+    .action(async (options: SummaryOptions) => {
+      const result = await summarizeStorage({
+        from: options.from,
+        to: options.to,
+      });
+      emit(result, Boolean(options.json), formatSummaryResult);
+    });
+
   const netdokCommand = program
     .command("netdok")
     .description("Sync work-logs into Netdok");
@@ -506,6 +535,12 @@ interface StorageResetOptions {
   json?: boolean;
 }
 
+interface SummaryOptions {
+  from?: string;
+  to?: string;
+  json?: boolean;
+}
+
 interface ParseListUnparsedOptions {
   from?: string;
   to?: string;
@@ -577,21 +612,65 @@ function emitExport(
 }
 
 function formatDeriveSummary(summary: DeriveSummary): string {
-  return [
+  const lines = [
     `Processed ${summary.processed} messages.`,
     `Inserted ${summary.inserted}; skipped ${summary.skipped}.`,
     `Storage: ${summary.storagePath}`,
-    "",
-  ].join("\n");
+  ];
+  appendNetdokHintLines(lines, summary.netdokHint);
+  lines.push("");
+  return lines.join("\n");
 }
 
 function formatFetchSummary(summary: FetchSummary): string {
-  return [
+  const lines = [
     `Fetched ${summary.fetched} Slack messages.`,
     `Inserted ${summary.inserted}; skipped ${summary.skipped}.`,
     `Storage: ${summary.storagePath}`,
-    "",
-  ].join("\n");
+  ];
+  appendNetdokHintLines(lines, summary.netdokHint);
+  lines.push("");
+  return lines.join("\n");
+}
+
+function appendNetdokHintLines(
+  lines: string[],
+  hint: NetdokHint | undefined,
+): void {
+  if (!hint) return;
+  lines.push(`Netdok: ${hint.configured ? "configured" : "not configured"}.`);
+  if (hint.unmappedProjects.length > 0) {
+    lines.push(`  Unmapped projects: ${hint.unmappedProjects.join(", ")}`);
+  }
+  if (hint.suggestion) {
+    lines.push(`  Suggestion: ${hint.suggestion}`);
+  }
+}
+
+function formatSummaryResult(result: SummaryResult): string {
+  const lines: string[] = [];
+  lines.push(
+    `Raw messages: ${result.totals.rawMessages}; work-logs: ${result.totals.workLogs}.`,
+  );
+  lines.push(
+    `Total hours: ${result.totals.totalHours}; unique projects: ${result.totals.uniqueProjects}.`,
+  );
+  if (result.totals.dateMin && result.totals.dateMax) {
+    lines.push(
+      `Date range: ${result.totals.dateMin} to ${result.totals.dateMax}.`,
+    );
+  }
+  if (result.projects.length > 0) {
+    lines.push("Projects:");
+    for (const stat of result.projects) {
+      lines.push(
+        `  ${stat.project}: ${stat.hours}h, ${stat.entries} entry/entries (${stat.dateMin}..${stat.dateMax})`,
+      );
+    }
+  }
+  lines.push(`Storage: ${result.storagePath}`);
+  lines.push("");
+  return lines.join("\n");
 }
 
 function formatTasksSummary(result: NetdokTaskSyncResult): string {

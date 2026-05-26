@@ -123,6 +123,12 @@ export interface CommandSpec {
   options: CommandOptionSpec[];
 }
 
+export interface NetdokHint {
+  configured: boolean;
+  unmappedProjects: string[];
+  suggestion?: string;
+}
+
 export interface FetchSummary {
   fetched: number;
   inserted: number;
@@ -131,12 +137,39 @@ export interface FetchSummary {
   from?: string;
   to?: string;
   storagePath: string;
+  netdokHint?: NetdokHint;
 }
 
 export interface DeriveSummary {
   processed: number;
   inserted: number;
   skipped: number;
+  storagePath: string;
+  from?: string;
+  to?: string;
+  netdokHint?: NetdokHint;
+}
+
+export interface SummaryProjectStat {
+  project: string;
+  entries: number;
+  hours: number;
+  dateMin: string;
+  dateMax: string;
+}
+
+export interface SummaryTotals {
+  rawMessages: number;
+  workLogs: number;
+  totalHours: number;
+  uniqueProjects: number;
+  dateMin: string | null;
+  dateMax: string | null;
+}
+
+export interface SummaryResult {
+  totals: SummaryTotals;
+  projects: SummaryProjectStat[];
   storagePath: string;
   from?: string;
   to?: string;
