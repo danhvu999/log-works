@@ -84,7 +84,8 @@ SETUP PROTOCOL. Always call \`log_works_config_check\` first in a fresh session 
 NEW-USER HAPPY PATH (PHASE A — local logging). After \`log_works_config_setup_slack\`, run in order:
 1. \`log_works_fetch\` with \`from: "lastmonth"\` (bounds the first-run fetch)
 2. \`log_works_derive\` over the same range — the rule parser materializes \`workLogs\` from \`rawMessages\` (source='rule'). Inspect any unmapped project names surfaced via \`netdokHint\`: confirm new names with the user and persist via \`log_works_projects_add\` (UPSERT). Do NOT ask the user to enumerate projects upfront.
-3. Stop. Tell the user "Logged. Want me to sync to Netdok?" and wait for an explicit answer. Do NOT run Phase B unless the user asks to sync.
+3. Offer to export the derived work-logs for review: call \`log_works_export\` (format \`csv\` or \`xlsx\`, \`outPath\` required) so the user can sanity-check rows before any Netdok sync. Phrase it as "Want me to export these to CSV/XLSX so you can check them?" — wait for a yes before calling export.
+4. Stop. Tell the user "Logged. Want me to sync to Netdok?" and wait for an explicit answer. Do NOT run Phase B unless the user asks to sync.
 
 NEW-USER HAPPY PATH (PHASE B — Netdok sync, only on explicit user request).
 4. (optional) \`log_works_projects_list\` to review the vocabulary built up during Phase A; persist any cleanup with \`log_works_projects_set\`.
@@ -101,6 +102,8 @@ DEBRIEF FILTER. \`log_works_fetch\` only stores messages whose text contains the
 PROJECT VOCABULARY. The vocabulary at \`config.projects.known\` should mirror the project names the rule parser emits during \`log_works_derive\`. When a derive run surfaces a project not yet in \`known\`, confirm the name with the user and call \`log_works_projects_add\` (UPSERT — keeps existing entries). Do NOT call \`log_works_projects_set\` for incremental additions; it REPLACES the whole list and would clobber other entries. Use \`log_works_projects_list\` to review the current vocabulary (e.g. before Netdok mapping, or when the user asks "what projects do I have"). Use \`log_works_projects_set\` only for explicit cleanup or full replacement.
 
 DERIVE STEP. ALWAYS call \`log_works_derive\` after \`log_works_fetch\` succeeds — it is the canonical parsing step. The rule parser handles the supported debrief formats (\`Debrief:\` section, \`Project\` / \`Project:\` / \`[Project]\` headers, \`•\`/\`◦\` bullets, inline \`[Nh]\` or \`[N]\` hours markers). \`log_works_derive\` is idempotent on \`\${ts}#\${index}\`, so re-running after a re-fetch only inserts the delta.
+
+EXPORT FOR REVIEW. After \`log_works_derive\` (and before any Netdok sync), proactively offer \`log_works_export\` so the user can eyeball the derived rows in a spreadsheet. Recommend \`format: "xlsx"\` for human review; use \`csv\` if the user prefers plain text. Always ask first — never export unprompted. Pass an explicit \`outPath\` (e.g. \`./worklogs-<from>-<to>.xlsx\`) and surface that path back to the user.
 
 ENTRY TEXT FORMAT. The \`text\` field on a derived work-log is the body that ends up on Netdok. The rule parser folds Slack sub-bullets (\`◦\`) into the parent bullet's text as newline-joined lines — \`log_works_netdok_worklogs\` renders each newline as a separate paragraph in the posted worklog. Example: \`"Fixed invoice line bug\\nReviewed PR #214\\nMet with QA"\` — not \`"Fixed invoice line bug; Reviewed PR #214; Met with QA"\`. One bullet = one entry; do NOT collapse multiple debrief bullets (different project/hours) into a single multi-line text — those must be split into separate entries.
 
