@@ -79,19 +79,20 @@ SETUP PROTOCOL. Always call \`log_works_config_check\` first in a fresh session 
 \`nextStep\` actions:
 - \`"setup-slack"\`: prompt only for Slack credentials (userToken, userId, channels) → \`log_works_config_setup_slack\`. Stop.
 - \`"fetch-and-derive"\`: Slack ready; Netdok deferred. Run \`log_works_fetch\` (with \`from: "lastmonth"\` on first-run) → the smart-parse loop. There is no MCP \`derive\` tool — the rule parser stays CLI-only.
-- \`"setup-netdok-discover"\`: ask for the Netdok API key → \`log_works_config_setup_netdok_discover\` (apiKey only) → present workspaces → re-call with \`workspaceId\`. Before \`apply\`, ask if any project should run in pinned-task mode (one fixed task, e.g. retainer / on-call); if yes, re-call discover with \`includeTasks: true\` to pick a \`taskId\` from \`projectTasks\`.
-- \`"setup-netdok-apply"\`: assemble \`projects\` mappings from the readiness result's \`knownLocalProjects\` and call \`log_works_config_setup_netdok_apply\`. Each project picks one mode: weekly-wrapper (\`sprintId\` + \`statusId\`) OR pinned-task (\`pinnedTaskId\`). Modes can be mixed.
-- \`"ready"\`: call \`log_works_netdok_tasks\` / \`log_works_netdok_worklogs\` per the user's request.
+- \`"setup-netdok-discover"\`: a status hint — Netdok is unconfigured but the local DB has data. Trigger this flow ONLY when the user explicitly asks to sync to Netdok. When asked: request the Netdok API key → \`log_works_config_setup_netdok_discover\` (apiKey only) → present workspaces → re-call with \`workspaceId\`. Before \`apply\`, ask if any project should run in pinned-task mode (one fixed task, e.g. retainer / on-call); if yes, re-call discover with \`includeTasks: true\` to pick a \`taskId\` from \`projectTasks\`.
+- \`"setup-netdok-apply"\`: a status hint — Netdok base keys are set but no project mappings yet. Trigger this ONLY when the user is following through on a sync request. Assemble \`projects\` mappings from the readiness result's \`knownLocalProjects\` and call \`log_works_config_setup_netdok_apply\`. Each project picks one mode: weekly-wrapper (\`sprintId\` + \`statusId\`) OR pinned-task (\`pinnedTaskId\`). Modes can be mixed.
+- \`"ready"\`: everything configured. Call \`log_works_netdok_tasks\` / \`log_works_netdok_worklogs\` per the user's request.
 
-NEW-USER HAPPY PATH. For a brand-new user, run in order:
-1. \`log_works_config_setup_slack\`
-2. \`log_works_fetch\` with \`from: "lastmonth"\` (bounds the first-run fetch)
-3. \`log_works_projects_list\` → walk the user through confirming/adding names
-4. \`log_works_projects_set\` (the full confirmed list — REPLACE semantics)
-5. \`log_works_unparsed\` → for each returned message, propose structured entries and call \`log_works_ingest_entries\` (\`source: "smart"\`). If a debrief mentions a project not in \`known\`, ask the user to confirm it and call \`log_works_projects_add\` to persist it incrementally.
-6. \`log_works_config_setup_netdok_discover\` → \`log_works_config_setup_netdok_apply\`
-7. Preview \`log_works_netdok_tasks\` → user confirms → apply
-8. Preview \`log_works_netdok_worklogs\` → user confirms → apply
+NEW-USER HAPPY PATH (PHASE A — local logging). After \`log_works_config_setup_slack\`, run in order:
+1. \`log_works_fetch\` with \`from: "lastmonth"\` (bounds the first-run fetch)
+2. \`log_works_unparsed\` → for each returned message, propose structured entries (project, text, hours per bullet) to the user and call \`log_works_ingest_entries\` (\`source: "smart"\`). If a bullet's project name is not in \`known\`, ask the user to confirm it and call \`log_works_projects_add\` to persist incrementally — the vocabulary builds up from real debrief content; do NOT ask the user to enumerate projects upfront.
+3. Stop. Tell the user "Logged. Want me to sync to Netdok?" and wait for an explicit answer. Do NOT run Phase B unless the user asks to sync.
+
+NEW-USER HAPPY PATH (PHASE B — Netdok sync, only on explicit user request).
+4. (optional) \`log_works_projects_list\` to review the vocabulary built up during Phase A; persist any cleanup with \`log_works_projects_set\`.
+5. \`log_works_config_setup_netdok_discover\` → \`log_works_config_setup_netdok_apply\`.
+6. Preview \`log_works_netdok_tasks\` → user confirms → apply.
+7. Preview \`log_works_netdok_worklogs\` → user confirms → apply.
 
 PREVIEW → APPROVE → APPLY. \`log_works_netdok_tasks\` and \`log_works_netdok_worklogs\` are the only mutating Netdok tools. (1) Call first with \`apply\` omitted — this is a preview, no writes. (2) Present the preview entries grouped by project + week (date / hours / first line of text). (3) Wait for explicit user confirmation ("yes", "apply", "sync it") — do not infer consent from earlier phrasing. (4) Only then re-call with \`apply: true\`. Never chain preview and apply in the same turn; never call \`apply: true\` first.
 
@@ -99,7 +100,7 @@ POST-SYNC SUMMARY. After an \`apply: true\` response, write a short summary grou
 
 DEBRIEF FILTER. \`log_works_fetch\` only stores messages whose text contains the case-insensitive substring \`debrief\`; non-matches are counted in \`droppedNonDebrief\` and discarded. Pass \`includeNonDebrief: true\` only when the user explicitly asks to fetch everything. Also inspect the optional \`netdokHint\` on the result: when present, it lists projects missing from \`netdok.projects\` (or flags Netdok as unconfigured) — prompt the user to run Netdok setup, still without bundling Slack prompts.
 
-PROJECT VOCABULARY. Before the smart-parse loop, call \`log_works_projects_list\` and show \`merged\` to the user: "Which of these are your current projects? Add any new ones, drop any you no longer work on." Persist with \`log_works_projects_set\` (REPLACE — pass the full final list). During \`log_works_ingest_entries\`, prefer names already in \`known\`. If a debrief mentions a project not in \`known\`, ask the user to confirm it and call \`log_works_projects_add\` (UPSERT — keeps existing entries). Never call \`log_works_projects_set\` for incremental additions; that clobbers other entries. Use \`set\` only for cleanup or full replacement.
+PROJECT VOCABULARY. The vocabulary at \`config.projects.known\` builds up incrementally during the smart-parse loop. When proposing entries for a \`log_works_unparsed\` message, prefer names already in \`known\`. If a bullet clearly mentions a project not in \`known\`, ask the user to confirm the new name, then call \`log_works_projects_add\` (UPSERT — keeps existing entries) to persist it. Do NOT call \`log_works_projects_set\` for incremental additions; it REPLACES the whole list and would clobber other entries. Use \`log_works_projects_list\` to review the current vocabulary (e.g. before Netdok mapping, or when the user asks "what projects do I have"). Use \`log_works_projects_set\` only for explicit cleanup or full replacement.
 
 SMART-PARSE LOOP. ALWAYS call log_works_unparsed after \`log_works_fetch\` succeeds — it is the canonical parsing step in MCP (the rule parser stays CLI-only because debrief formats vary too widely). If the \`messages\` array is non-empty, propose structured entries (project, text, hours per bullet) to the user, confirm, then call \`log_works_ingest_entries\`. If empty, say "no debrief messages to parse" and move on. Skip only if the user opts out.
 
@@ -224,7 +225,7 @@ export function createServer(): McpServer {
     {
       title: "List project vocabulary",
       description:
-        "Returns `{ suggestions, known, merged, configPath }` — the project-name vocabulary used as parsing context. Call before `log_works_unparsed`; show `merged` to the user, then persist confirmed names via `log_works_projects_set` (initial) or `log_works_projects_add` (incremental).",
+        "Returns `{ suggestions, known, merged, configPath }`. Use to review the current vocabulary (e.g. before Netdok mapping, or when the user asks). The vocabulary normally builds up via `log_works_projects_add` during smart-parse — calling this beforehand is optional, not a required step.",
       inputSchema: z.object({}).shape,
     },
     async () => run(() => listProjects()),
@@ -235,7 +236,7 @@ export function createServer(): McpServer {
     {
       title: "Replace project vocabulary (REPLACE)",
       description:
-        "Replace `config.projects.known` with the supplied list (trim, dedup, sort). Pass an empty list to clear. For incremental additions, use `log_works_projects_add` instead.",
+        "Replace `config.projects.known` with the supplied list (trim, dedup, sort). Use only for cleanup or full replacement — the vocabulary normally builds up incrementally via `log_works_projects_add` during smart-parse. Pass an empty list to clear.",
       inputSchema: z.object({
         names: z
           .array(z.string().min(1))
