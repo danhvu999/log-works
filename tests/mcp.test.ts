@@ -32,6 +32,7 @@ describe("MCP wrapper", () => {
         "log_works_export",
         "log_works_fetch",
         "log_works_ingest_entries",
+        "log_works_netdok_fetch_tasks",
         "log_works_netdok_tasks",
         "log_works_netdok_worklogs",
         "log_works_projects_add",

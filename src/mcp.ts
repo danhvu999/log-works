@@ -10,6 +10,7 @@ import {
 import { errorResponse } from "./output.ts";
 import { exportWorkLogs } from "./services/export.service.ts";
 import { fetchWorkLogs } from "./services/fetch.service.ts";
+import { fetchNetdokRemoteTasks } from "./services/netdok-fetch-tasks.service.ts";
 import { syncNetdokTasks } from "./services/netdok-tasks.service.ts";
 import { syncNetdokWorklogs } from "./services/netdok-worklogs.service.ts";
 import {
@@ -281,6 +282,27 @@ export function createServer(): McpServer {
       }).shape,
     },
     async (input) => run(() => syncNetdokTasks(input)),
+  );
+
+  server.registerTool(
+    "log_works_netdok_fetch_tasks",
+    {
+      title: "Fetch remote Netdok tasks",
+      description:
+        "Read-only list of remote Netdok tasks for a project (optionally scoped by sprintId). Calls GET /tasks; no local DB writes. Use to inspect available taskIds (e.g. when picking a pinned task) or to verify a wrapper task exists.",
+      inputSchema: z.object({
+        projectId: z
+          .string()
+          .min(1)
+          .describe("Netdok project id to list tasks for"),
+        sprintId: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Optional sprint id to scope the listing"),
+      }).shape,
+    },
+    async (input) => run(() => fetchNetdokRemoteTasks(input)),
   );
 
   server.registerTool(

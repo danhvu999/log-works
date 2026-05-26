@@ -414,6 +414,25 @@ export interface NetdokProjectTasksSummary {
   tasks: NetdokProjectTaskSummary[];
 }
 
+export interface NetdokRemoteTaskSummary {
+  id: string;
+  key: string;
+  name: string;
+  projectId: string;
+  sprintId: string | null;
+  statusId: string;
+  estimate: number;
+  remaining: number;
+  reporterId?: string;
+}
+
+export interface NetdokFetchTasksResult {
+  projectId: string;
+  sprintId?: string;
+  total: number;
+  tasks: NetdokRemoteTaskSummary[];
+}
+
 export interface SlackSetupSummary {
   applied: boolean;
   config: LogWorksConfig;

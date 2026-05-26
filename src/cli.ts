@@ -11,6 +11,7 @@ import { errorResponse } from "./output.ts";
 import { deriveWorkLogs } from "./services/derive.service.ts";
 import { exportWorkLogs } from "./services/export.service.ts";
 import { fetchWorkLogs } from "./services/fetch.service.ts";
+import { fetchNetdokRemoteTasks } from "./services/netdok-fetch-tasks.service.ts";
 import { syncNetdokTasks } from "./services/netdok-tasks.service.ts";
 import { syncNetdokWorklogs } from "./services/netdok-worklogs.service.ts";
 import {
@@ -42,6 +43,7 @@ import type {
   NetdokApplyInput,
   NetdokApplySummary,
   NetdokDiscoverResult,
+  NetdokFetchTasksResult,
   NetdokHint,
   NetdokTaskSyncResult,
   NetdokWorklogSyncResult,
@@ -186,6 +188,15 @@ export const COMMAND_SPECS: CommandSpec[] = [
       { name: "--from", takesValue: true },
       { name: "--to", takesValue: true },
       { name: "--apply", takesValue: false },
+    ],
+  },
+  {
+    name: "netdok fetch-tasks",
+    summary: "Fetch remote Netdok tasks for a project (read-only)",
+    options: [
+      ...COMMON_OPTIONS,
+      { name: "--project-id", takesValue: true },
+      { name: "--sprint-id", takesValue: true },
     ],
   },
   {
@@ -506,6 +517,22 @@ export function createProgram(): Command {
     });
 
   netdokCommand
+    .command("fetch-tasks")
+    .description(
+      "Fetch remote Netdok tasks for a project (read-only; no DB writes)",
+    )
+    .requiredOption("--project-id <id>", "Netdok project id")
+    .option("--sprint-id <id>", "Restrict to a single sprint id")
+    .option("--json", "Print machine-readable JSON")
+    .action(async (options: NetdokFetchTasksOptions) => {
+      const result = await fetchNetdokRemoteTasks({
+        projectId: options.projectId,
+        sprintId: options.sprintId,
+      });
+      emit(result, Boolean(options.json), formatFetchTasksSummary);
+    });
+
+  netdokCommand
     .command("worklogs")
     .description("Post pending work-logs to Netdok under their weekly task")
     .option("--from <date>", "Start date inclusive (YYYY-MM-DD)")
@@ -601,6 +628,12 @@ interface NetdokWorklogsOptions {
   from?: string;
   to?: string;
   apply?: boolean;
+  json?: boolean;
+}
+
+interface NetdokFetchTasksOptions {
+  projectId: string;
+  sprintId?: string;
   json?: boolean;
 }
 
@@ -849,6 +882,22 @@ function formatWorklogsSummary(result: NetdokWorklogSyncResult): string {
   }
   if (!result.applied) {
     lines.push("Run with --apply to post worklogs.");
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+function formatFetchTasksSummary(result: NetdokFetchTasksResult): string {
+  const lines: string[] = [];
+  const scope = result.sprintId
+    ? `${result.projectId} (sprint ${result.sprintId})`
+    : result.projectId;
+  lines.push(`Tasks for ${scope}: ${result.total}`);
+  for (const task of result.tasks) {
+    const sprintLabel = task.sprintId ?? "-";
+    lines.push(
+      `  ${task.key}  ${task.id}  sprint=${sprintLabel}  status=${task.statusId}  ${task.name}`,
+    );
   }
   lines.push("");
   return lines.join("\n");

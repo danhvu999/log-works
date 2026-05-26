@@ -21,6 +21,7 @@ log-works projects list
 log-works projects set --names <a,b,c>
 log-works projects add --names <a,b,c>
 log-works netdok tasks    [--from <date>] [--to <date>] [--apply]
+log-works netdok fetch-tasks --project-id <id> [--sprint-id <id>]
 log-works netdok worklogs [--from <date>] [--to <date>] [--apply]
 log-works storage clear-netdok [--from <date>] [--to <date>] [--apply]
 log-works storage reset [--apply]
@@ -169,6 +170,31 @@ UPSERT semantics — `names` is merged into `config.projects.known`; existing en
 `taskUrl` is built server-side from `netdok.appBaseUrl` (default `https://app.netdok.co`) and the row's `projectId` + `taskId`. Omitted on `would-create` rows (no taskId yet).
 
 Projects with `netdok.projects.<name>.pinnedTaskId` set never appear in `weeks` and skip wrapper creation. They are surfaced in `pinned` so the caller can confirm the mode is active. The `status` enum on each `weeks` entry adds `"pinned"` for forward compatibility (currently only used in the `pinned` array's parallel reporting).
+
+### `netdok fetch-tasks` JSON
+
+```json
+{
+  "projectId": "proj-v",
+  "sprintId": "sprint-1",
+  "total": 2,
+  "tasks": [
+    {
+      "id": "cmpkkh…",
+      "key": "TP-7",
+      "name": "[Venulog] Task issues from 2026-05-18 to 2026-05-24",
+      "projectId": "proj-v",
+      "sprintId": "sprint-1",
+      "statusId": "status-inprog",
+      "estimate": 28800,
+      "remaining": 28800,
+      "reporterId": "profile-1"
+    }
+  ]
+}
+```
+
+Read-only `GET /tasks?projectId=…[&sprintId=…]`. No local DB writes; no remote mutations. `--project-id` is required; `--sprint-id` is optional. `sprintId` on the result echoes the request scope and is omitted when unset. Each `tasks[]` entry mirrors the Netdok `/tasks` row (`reporterId` may be absent on legacy rows). The MCP equivalent is `log_works_netdok_fetch_tasks` with `{ projectId, sprintId? }`.
 
 ### `netdok worklogs` JSON
 

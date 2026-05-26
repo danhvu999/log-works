@@ -24,6 +24,7 @@ describe("CLI contract", () => {
       "projects set",
       "projects add",
       "netdok tasks",
+      "netdok fetch-tasks",
       "netdok worklogs",
       "storage clear-netdok",
       "storage reset",
@@ -47,16 +48,26 @@ describe("CLI contract", () => {
     expect(flag?.takesValue).toBe(false);
   });
 
-  test("netdok commands default to preview (require --apply for writes)", () => {
+  test("netdok mutating commands default to preview (require --apply for writes)", () => {
+    const mutating = ["netdok tasks", "netdok worklogs"];
     const netdokCommands = COMMAND_SPECS.filter((c) =>
-      c.name.startsWith("netdok "),
+      mutating.includes(c.name),
     );
-    expect(netdokCommands.length).toBe(2);
+    expect(netdokCommands.length).toBe(mutating.length);
     for (const command of netdokCommands) {
       const applyFlag = command.options.find((opt) => opt.name === "--apply");
       expect(applyFlag).toBeDefined();
       expect(applyFlag?.takesValue).toBe(false);
     }
+  });
+
+  test("netdok fetch-tasks is read-only (no --apply, requires --project-id)", () => {
+    const spec = COMMAND_SPECS.find((c) => c.name === "netdok fetch-tasks");
+    expect(spec).toBeDefined();
+    expect(spec?.options.some((o) => o.name === "--apply")).toBe(false);
+    const projectFlag = spec?.options.find((o) => o.name === "--project-id");
+    expect(projectFlag).toBeDefined();
+    expect(projectFlag?.takesValue).toBe(true);
   });
 
   test("storage commands default to preview (require --apply for writes)", () => {
