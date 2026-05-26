@@ -75,5 +75,7 @@ describe("MCP wrapper", () => {
     expect(instructions).toMatch(/Never bundle|never bundle/);
     expect(instructions).toMatch(/preview/i);
     expect(instructions).toContain("taskUrl");
+    expect(instructions).toContain("smartParseHint");
+    expect(instructions).toContain("log_works_unparsed");
   });
 });

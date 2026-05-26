@@ -100,6 +100,8 @@ POST-SYNC SUMMARY. After a successful \`apply: true\` response, write a short su
 
 After log_works_fetch or log_works_derive succeeds, inspect the optional \`netdokHint\` field on the result. When present, it means either Netdok is not yet configured (\`configured: false\`) or some projects in the just-processed range are missing from \`netdok.projects\` (\`unmappedProjects\`). Prompt the user to run the Netdok setup flow for those projects — still without bundling Slack prompts.
 
+SMART-PARSE LOOP. After log_works_derive succeeds, inspect the optional \`smartParseHint\` field. When present, it means the rule parser could not fully handle \`totalNeedingReview\` raw messages (\`emptyCount\` produced zero entries, \`partialCount\` were missing project or hours). Run the loop: call log_works_unparsed to fetch the raw text of the failing messages, show them to the user, propose structured entries (project, text, hours per bullet), confirm with the user, then call log_works_ingest_entries to write them back as \`source: "smart"\`. Skip the loop only if the user explicitly opts out. The hint is omitted when every raw message in the range parsed cleanly.
+
 For setup or planning questions ("what projects are in my logs?", "how many hours did I log on X?"), call log_works_summary instead of exporting + post-processing. It returns aggregate counts and per-project hours straight from the local DB.`;
 
 export function createServer(): McpServer {
@@ -175,7 +177,7 @@ export function createServer(): McpServer {
     {
       title: "Derive work-logs",
       description:
-        "Parse local raw Slack messages into structured WorkLogEntry rows. Idempotent on ${ts}#${bulletIndex}. The result may include an optional `netdokHint` field listing projects in the just-derived range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup.",
+        "Parse local raw Slack messages into structured WorkLogEntry rows. Idempotent on ${ts}#${bulletIndex}. The result may include an optional `netdokHint` field listing projects in the just-derived range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup. The result may also include `smartParseHint` with `emptyCount` / `partialCount` / `totalNeedingReview` when any raw message in the range failed (status `empty`) or was only partially parsed (status `partial`) — when present, follow the smart-parse loop: call log_works_unparsed, show the messages to the user, build structured entries, then log_works_ingest_entries.",
       inputSchema: z.object({
         from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
         to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),

@@ -136,6 +136,27 @@ Projects with `netdok.projects.<name>.pinnedTaskId` set never appear in `weeks` 
 
 `projectId` is present whenever `netdok.projects[entry.project]` is mapped (so missing only on `skipped-no-project`). `taskUrl` is built server-side from `netdok.appBaseUrl` (default `https://app.netdok.co`), `projectId`, and `taskId`. Omitted when either is missing (e.g. `skipped-no-task`, `skipped-no-project`).
 
+### Post-success `smartParseHint` (on `derive`)
+
+When `derive` succeeds, the JSON result may include an optional `smartParseHint` field:
+
+```json
+{
+  "smartParseHint": {
+    "emptyCount": 1,
+    "partialCount": 2,
+    "totalNeedingReview": 3,
+    "suggestion": "Call log_works_unparsed to list the failing messages, then propose structured entries and pass them to log_works_ingest_entries."
+  }
+}
+```
+
+- `emptyCount` — raw messages in the range where the rule parser produced zero entries (`status: "empty"`).
+- `partialCount` — raw messages where the rule parser produced entries but at least one bullet is missing a project or hours (`status: "partial"`).
+- `totalNeedingReview` — `emptyCount + partialCount`. Use this as the headline number when prompting the user.
+- `suggestion` — points the agent at `log_works_unparsed` (step 1 of the smart-parse loop) followed by `log_works_ingest_entries` (step 2).
+- The field is **omitted entirely** when every raw message in the range parsed cleanly (`status: "ok"`).
+
 ### Post-success `netdokHint` (on `fetch` and `derive`)
 
 When `fetch` or `derive` succeeds, the JSON result may include an optional `netdokHint` field:

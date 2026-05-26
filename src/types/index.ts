@@ -130,6 +130,13 @@ export interface NetdokHint {
   suggestion?: string;
 }
 
+export interface SmartParseHint {
+  emptyCount: number;
+  partialCount: number;
+  totalNeedingReview: number;
+  suggestion: string;
+}
+
 export interface FetchSummary {
   fetched: number;
   inserted: number;
@@ -149,6 +156,7 @@ export interface DeriveSummary {
   from?: string;
   to?: string;
   netdokHint?: NetdokHint;
+  smartParseHint?: SmartParseHint;
 }
 
 export interface SummaryProjectStat {

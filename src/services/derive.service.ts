@@ -2,14 +2,16 @@ import { loadConfig, resolveStoragePath } from "../config/config.manager.ts";
 import type {
   DeriveSummary,
   LogWorksConfig,
+  ParseEvaluationStatus,
   RawSlackMessage,
 } from "../types/index.ts";
 import { computeNetdokHint } from "./netdok-hint.service.ts";
 import {
   applyDateHint,
+  evaluateMessage,
   extractDateHint,
-  parseMessageText,
 } from "./parser.service.ts";
+import { computeSmartParseHint } from "./smart-parse-hint.service.ts";
 import { readDatabase, writeDatabase } from "./storage.service.ts";
 
 export interface DeriveWorkLogsInput {
@@ -30,6 +32,7 @@ export async function deriveWorkLogs(
   let inserted = 0;
   let skipped = 0;
   const projectsInRange = new Set<string>();
+  const statusesInRange: ParseEvaluationStatus[] = [];
 
   for (const message of database.rawMessages) {
     const date = effectiveDateForMessage(message);
@@ -37,7 +40,9 @@ export async function deriveWorkLogs(
     if (input.to && date > input.to) continue;
 
     processed += 1;
-    for (const parsed of parseMessageText(message.text)) {
+    const evaluation = evaluateMessage(message.text);
+    statusesInRange.push(evaluation.status);
+    for (const parsed of evaluation.entries) {
       projectsInRange.add(parsed.project);
       const id = `${message.ts}#${parsed.index}`;
       if (existing.has(id)) {
@@ -62,6 +67,7 @@ export async function deriveWorkLogs(
   await writeDatabase(storagePath, database);
 
   const netdokHint = computeNetdokHint(config, projectsInRange);
+  const smartParseHint = computeSmartParseHint(statusesInRange);
 
   return {
     processed,
@@ -71,6 +77,7 @@ export async function deriveWorkLogs(
     from: input.from,
     to: input.to,
     ...(netdokHint ? { netdokHint } : {}),
+    ...(smartParseHint ? { smartParseHint } : {}),
   };
 }
 

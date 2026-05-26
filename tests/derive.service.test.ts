@@ -108,6 +108,39 @@ describe("derive service", () => {
     expect(summary.netdokHint?.unmappedProjects).toEqual(["Metabase"]);
   });
 
+  test("attaches smartParseHint when fixture contains empty/partial messages", async () => {
+    const messages = await loadDebriefFixture();
+    const dbPath = await makeTempDb(messages);
+
+    const summary = await deriveWorkLogs({
+      config: { storage: { path: dbPath } },
+    });
+
+    expect(summary.smartParseHint).toBeDefined();
+    expect(summary.smartParseHint?.totalNeedingReview).toBeGreaterThan(0);
+    expect(summary.smartParseHint?.suggestion).toMatch(/log_works_unparsed/);
+  });
+
+  test("omits smartParseHint when every raw message parses cleanly", async () => {
+    const messages: RawSlackMessage[] = [
+      {
+        ts: "1716000000.999999",
+        channel: "CWORKLOG",
+        userId: "U123LOG",
+        text: "Debrief:\nMetabase\n• Shipped fix [1h]",
+        raw: {},
+        fetchedAt: "2026-05-18T00:00:00.000Z",
+      },
+    ];
+    const dbPath = await makeTempDb(messages);
+
+    const summary = await deriveWorkLogs({
+      config: { storage: { path: dbPath } },
+    });
+
+    expect(summary.smartParseHint).toBeUndefined();
+  });
+
   test("omits netdokHint when Netdok is fully configured and every project mapped", async () => {
     const messages = await loadDebriefFixture();
     const dbPath = await makeTempDb(messages);

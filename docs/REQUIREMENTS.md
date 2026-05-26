@@ -162,6 +162,7 @@ The rule parser is intentionally permissive but cannot handle freeform debriefs 
 - `parse ingest` (MCP: `log_works_ingest_entries`) accepts an array of `{ sourceTs, index?, date?, project, text, hours? }`. Inserted rows live in `workLogs` with `source: "smart"` and id `${sourceTs}#smart-${index}`. The namespace prevents collisions with rule-derived `${ts}#${bulletIndex}` ids.
 - Smart entries flow through `netdok tasks`/`netdok worklogs` exactly like rule entries. Re-ingest of the same `(sourceTs, index)` reports `skipped-duplicate`. Validation failures raise `smart-parse-invalid` and write nothing.
 - The tool never invokes a model. The "agent" is whatever MCP client is connected.
+- `derive` advertises an optional `smartParseHint` (`emptyCount`, `partialCount`, `totalNeedingReview`, `suggestion`) on its result so an external agent can drive the loop in-band without a separate `parse list-unparsed` round-trip. Omitted when every raw message in the range parsed cleanly.
 
 ## 3. CLI surface (initial)
 
