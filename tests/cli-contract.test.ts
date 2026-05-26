@@ -22,6 +22,7 @@ describe("CLI contract", () => {
       "summary",
       "projects list",
       "projects set",
+      "projects add",
       "netdok tasks",
       "netdok worklogs",
       "storage clear-netdok",

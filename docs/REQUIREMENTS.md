@@ -104,15 +104,14 @@ Local storage maintenance commands, also preview by default and only mutate when
 - Date derivation: take the integer part of Slack `ts` as Unix seconds, format the UTC date as `YYYY-MM-DD`. Time-zone resolution is a separate open question (FR §7).
 - `--json` emits `{ processed, inserted, skipped, storagePath, from?, to? }`.
 
-### FR8 — Raw debrief feed for agent-side project inference
+### FR8 — Aggregated work-log summary
 
-- Standalone command `log-works summary` (MCP: `log_works_summary`). Pure local read; no Slack or Netdok calls. Does **not** depend on `log_works_derive` having run — it reads `rawMessages` directly.
-- Returns the raw text of every debrief message in range — no parsing, no aggregation. The agent (LLM) is expected to infer project names from the unstructured prose itself, because debrief formats vary and the rule parser misses non-canonical headers.
-- Response: `messages: [{ ts, date, channel, text }]`. `date` uses the same `effectiveDateForMessage` logic as `derive` / `parse list-unparsed`. `text` is verbatim — newlines, links, and mixed Brief/Debrief sections preserved.
-- Optional `--from` / `--to` (`YYYY-MM-DD`, inclusive) scope the scan.
-- Messages are filtered via `isDebriefText` (case-insensitive `/debrief/i`, same filter as `log_works_fetch`) so anything that slipped past the fetch filter is dropped server-side.
-- Messages are sorted chronologically (`date` asc, ties broken by Slack `ts`).
-- Exists so an external agent can plan Netdok project mappings (`setup-netdok-apply.projects` keys) by reading the actual debrief texts rather than trusting the rule parser's strict format.
+- Standalone command `log-works summary` (MCP: `log_works_summary`). Pure local read; no Slack or Netdok calls. Reads `workLogs` directly (not `rawMessages`), so it reflects whatever the rule parser and the smart-parse loop have ingested.
+- Returns per-project totals + grand totals. Shape: `{ projects: [{ project, entries, hours, entriesWithoutHours, firstDate, lastDate }], totals: { entries, hours, entriesWithoutHours }, from?, to?, storagePath }`. `projects[]` is sorted by `project` ASC.
+- `hours` sums non-null `WorkLogEntry.hours`. Entries with `hours: null` are counted in `entriesWithoutHours` but never inflate the `hours` total.
+- Optional `--from` / `--to` (`YYYY-MM-DD`, inclusive) filter on `workLogs[].date` before aggregation. No status filter — `summary` reports everything in `workLogs` regardless of `pending` / `sent` / `failed`.
+- Empty DB / empty range returns `{ projects: [], totals: { entries: 0, hours: 0, entriesWithoutHours: 0 }, … }`.
+- This is the supported "what did I log?" tool — MCP agents must use it instead of shelling out (`python`, `jq`, `cat`) to read `~/.log-works/db.json`. `log_works_summary` is intentionally NOT part of the setup chain; the project-name vocabulary for `setup-netdok-apply` comes from `log_works_projects_list` / `_set` / `_add` (see FR9).
 
 ### FR-PREVIEW — Agent-side preview → approve → apply contract
 
@@ -130,11 +129,12 @@ Local storage maintenance commands, also preview by default and only mutate when
 
 ### FR9 — User-confirmed project vocabulary
 
-- Two MCP tools / CLI subcommands:
+- Three MCP tools / CLI subcommands:
   - `log_works_projects_list` (CLI: `log-works projects list`) — returns `{ suggestions, known, merged, configPath }`. `suggestions` is `src/constants/project-name-suggestions.ts`; `known` is `config.projects.known`; `merged` is the deduped union, sorted.
-  - `log_works_projects_set` (CLI: `log-works projects set --names "a,b,c"`) — REPLACE semantics. Writes `config.projects.known = unique(names).sort()`. Validation failures raise `setup-invalid`.
+  - `log_works_projects_set` (CLI: `log-works projects set --names "a,b,c"`) — REPLACE semantics. Writes `config.projects.known = unique(names).sort()`. Validation failures raise `setup-invalid`. Use for explicit cleanup, full replacement, or clearing (`names: []`).
+  - `log_works_projects_add` (CLI: `log-works projects add --names "a,b,c"`) — UPSERT semantics. Merges `names` into `config.projects.known` without dropping existing entries; result includes `added` (the names that were not previously in `known`). Same trim/dedup/sort rules and same `setup-invalid` validation as `set`. Use for incremental additions during the smart-parse loop so the agent can persist newly-discovered project names without re-passing the whole list.
 - Storage: top-level `config.projects.known: string[]` (separate from `netdok.projects`, which carries Netdok mappings).
-- Purpose: anchor the project field that the MCP smart-parse loop writes into `workLogs`. The agent calls `list` before `log_works_unparsed`, walks the user through confirm/add, persists via `set`, then uses the persisted list as context when proposing structured entries to `log_works_ingest_entries`. Subsequent sessions reload the persisted list automatically.
+- Purpose: anchor the project field that the MCP smart-parse loop writes into `workLogs`. The agent calls `list` before `log_works_unparsed`, walks the user through confirm/add, persists the initial set via `set`, then uses the persisted list as context when proposing structured entries to `log_works_ingest_entries`. When the agent encounters a project name not yet in `known`, it asks the user to confirm it and then calls `add` to persist it incrementally — never `set`, which would clobber other entries. Subsequent sessions reload the persisted list automatically.
 - `config_check.netdok.knownLocalProjects` unions in `config.projects.known` so the Netdok-apply flow sees user-confirmed names alongside the static seed list and rule-parser-derived names.
 
 ### FR-SETUP — Guided config setup (external agent, Slack-first)
@@ -189,6 +189,7 @@ log-works export --format <csv|json|xlsx> [--from <date>] [--to <date>] [--statu
 log-works summary [--from <date>] [--to <date>]
 log-works projects list
 log-works projects set --names <a,b,c>
+log-works projects add --names <a,b,c>
 log-works netdok tasks    [--from <date>] [--to <date>] [--apply]
 log-works netdok worklogs [--from <date>] [--to <date>] [--apply]
 log-works storage clear-netdok [--from <date>] [--to <date>] [--apply]

@@ -34,6 +34,7 @@ describe("MCP wrapper", () => {
         "log_works_ingest_entries",
         "log_works_netdok_tasks",
         "log_works_netdok_worklogs",
+        "log_works_projects_add",
         "log_works_projects_list",
         "log_works_projects_set",
         "log_works_storage_clear_netdok",
@@ -84,7 +85,9 @@ describe("MCP wrapper", () => {
     expect(instructions).toMatch(/ALWAYS call log_works_unparsed/);
     expect(instructions).toContain("lastmonth");
     expect(instructions).toContain("log_works_summary");
-    expect(instructions).toMatch(/raw text of every debrief message/);
-    expect(instructions).toMatch(/infer the canonical project-name list/);
+    expect(instructions).toContain("log_works_projects_add");
+    expect(instructions).toMatch(/Do NOT shell out/);
+    expect(instructions).toMatch(/log_works_summary is NOT part of setup/);
+    expect(instructions).toMatch(/per-project totals|workLogs/);
   });
 });

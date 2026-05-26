@@ -19,6 +19,7 @@ log-works export --format <csv|json|xlsx> [--from <date>] [--to <date>] [--statu
 log-works summary [--from <date>] [--to <date>]
 log-works projects list
 log-works projects set --names <a,b,c>
+log-works projects add --names <a,b,c>
 log-works netdok tasks    [--from <date>] [--to <date>] [--apply]
 log-works netdok worklogs [--from <date>] [--to <date>] [--apply]
 log-works storage clear-netdok [--from <date>] [--to <date>] [--apply]
@@ -64,21 +65,36 @@ Tool outputs are the same JSON shapes documented below; errors use `{ isError: t
 
 ```json
 {
-  "messages": [
+  "projects": [
     {
-      "ts": "1779378065.759309",
-      "date": "2026-05-21",
-      "channel": "C08SZ28DSJE",
-      "text": "Debrief:\nMetabase\n• Worked on Duplicate PostgreSQL Sync Pipeline for ClickHouse [8h]"
+      "project": "Metabase",
+      "entries": 4,
+      "hours": 12.5,
+      "entriesWithoutHours": 1,
+      "firstDate": "2026-05-19",
+      "lastDate": "2026-05-23"
+    },
+    {
+      "project": "Venulog",
+      "entries": 7,
+      "hours": 18,
+      "entriesWithoutHours": 0,
+      "firstDate": "2026-05-18",
+      "lastDate": "2026-05-24"
     }
   ],
+  "totals": {
+    "entries": 11,
+    "hours": 30.5,
+    "entriesWithoutHours": 1
+  },
   "storagePath": "~/.log-works/db.json",
   "from": "2026-05-18",
   "to": "2026-05-24"
 }
 ```
 
-Read-only. Returns every raw debrief message in range. The agent (LLM) is expected to infer project names from `text` — the tool does not parse. Messages are sorted by `date` asc (ties broken by `ts`). Each message's `date` uses the same `effectiveDateForMessage` logic as `derive`. `isDebriefText` (case-insensitive `/debrief/i`) filters out anything that slipped past the fetch filter, so non-debrief / Brief-only / chatter never appears.
+Read-only aggregation over local `workLogs` (not raw debrief messages). Each `projects[]` entry groups every work-log row with the same `project` field, summing `hours` (null hours contribute to `entriesWithoutHours` but not the `hours` total) and tracking the date range with `firstDate` / `lastDate`. `projects[]` is sorted by `project` ASC; `totals` is the grand sum across all returned projects. Optional `--from` / `--to` (`YYYY-MM-DD`, inclusive) filter on `workLogs[].date` before aggregation. This is the supported way to inspect the local DB — MCP agents must call `log_works_summary` for aggregate questions rather than shelling out to read `~/.log-works/db.json`.
 
 ### `projects list` JSON
 
@@ -103,7 +119,20 @@ Read-only. Returns every raw debrief message in range. The agent (LLM) is expect
 }
 ```
 
-REPLACE semantics — `config.projects.known` becomes exactly the supplied list (trimmed, deduped, sorted). To clear, pass an empty list. Bad payloads raise `setup-invalid`. The MCP equivalent is `log_works_projects_set` with `{ names: string[] }`.
+REPLACE semantics — `config.projects.known` becomes exactly the supplied list (trimmed, deduped, sorted). To clear, pass an empty list. Bad payloads raise `setup-invalid`. The MCP equivalent is `log_works_projects_set` with `{ names: string[] }`. For incremental additions (no clobber), use `projects add` instead.
+
+### `projects add` JSON
+
+```json
+{
+  "applied": true,
+  "known": ["Alpha", "Beta", "Delta", "Gamma"],
+  "added": ["Delta", "Gamma"],
+  "configPath": "/home/you/.log-works/config.json"
+}
+```
+
+UPSERT semantics — `names` is merged into `config.projects.known`; existing entries are preserved. Names are trimmed, deduped, and the final list is sorted before persisting. `added` contains only the names that were not previously in `known` (sorted). Re-adding existing names is a no-op and returns `added: []`. Bad payloads raise `setup-invalid`. The MCP equivalent is `log_works_projects_add` with `{ names: string[] }`. Use this during the smart-parse loop when the agent discovers a project name not yet in `known` and the user confirms it; use `projects set` only for explicit cleanup or full replacement.
 
 ### `netdok tasks` JSON
 

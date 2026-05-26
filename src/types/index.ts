@@ -121,6 +121,17 @@ export interface ProjectsSetSummary {
   configPath: string;
 }
 
+export interface AddKnownProjectsInput {
+  names: string[];
+}
+
+export interface ProjectsAddSummary {
+  applied: true;
+  known: string[];
+  added: string[];
+  configPath: string;
+}
+
 export interface SlackFixtureMessage {
   type: "message";
   channel: string;
@@ -176,15 +187,24 @@ export interface DeriveSummary {
   smartParseHint?: SmartParseHint;
 }
 
-export interface SummaryRawDebrief {
-  ts: string;
-  date: string;
-  channel: string;
-  text: string;
+export interface SummaryProjectAggregate {
+  project: string;
+  entries: number;
+  hours: number;
+  entriesWithoutHours: number;
+  firstDate: string;
+  lastDate: string;
+}
+
+export interface SummaryTotals {
+  entries: number;
+  hours: number;
+  entriesWithoutHours: number;
 }
 
 export interface SummaryResult {
-  messages: SummaryRawDebrief[];
+  projects: SummaryProjectAggregate[];
+  totals: SummaryTotals;
   storagePath: string;
   from?: string;
   to?: string;

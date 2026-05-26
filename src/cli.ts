@@ -13,7 +13,11 @@ import { exportWorkLogs } from "./services/export.service.ts";
 import { fetchWorkLogs } from "./services/fetch.service.ts";
 import { syncNetdokTasks } from "./services/netdok-tasks.service.ts";
 import { syncNetdokWorklogs } from "./services/netdok-worklogs.service.ts";
-import { listProjects, setKnownProjects } from "./services/projects.service.ts";
+import {
+  addKnownProjects,
+  listProjects,
+  setKnownProjects,
+} from "./services/projects.service.ts";
 import {
   checkConfigReadiness,
   setupNetdokApply,
@@ -41,6 +45,7 @@ import type {
   NetdokHint,
   NetdokTaskSyncResult,
   NetdokWorklogSyncResult,
+  ProjectsAddSummary,
   ProjectsListResult,
   ProjectsSetSummary,
   SlackSetupSummary,
@@ -165,6 +170,12 @@ export const COMMAND_SPECS: CommandSpec[] = [
     name: "projects set",
     summary:
       "Replace config.projects.known with the supplied comma-separated list",
+    options: [...COMMON_OPTIONS, { name: "--names", takesValue: true }],
+  },
+  {
+    name: "projects add",
+    summary:
+      "Merge project names into config.projects.known (upsert; existing entries kept)",
     options: [...COMMON_OPTIONS, { name: "--names", takesValue: true }],
   },
   {
@@ -462,6 +473,22 @@ export function createProgram(): Command {
       emit(result, Boolean(options.json), formatProjectsSet);
     });
 
+  projectsCommand
+    .command("add")
+    .description(
+      "Merge project names into config.projects.known (existing entries kept; dedup + sort)",
+    )
+    .requiredOption("--names <list>", "Comma-separated project names")
+    .option("--json", "Print machine-readable JSON")
+    .action(async (options: ProjectsAddOptions) => {
+      const names = options.names
+        .split(",")
+        .map((name) => name.trim())
+        .filter(Boolean);
+      const result = await addKnownProjects({ names });
+      emit(result, Boolean(options.json), formatProjectsAdd);
+    });
+
   const netdokCommand = program
     .command("netdok")
     .description("Sync work-logs into Netdok");
@@ -604,6 +631,11 @@ interface ProjectsSetOptions {
   json?: boolean;
 }
 
+interface ProjectsAddOptions {
+  names: string;
+  json?: boolean;
+}
+
 interface ParseListUnparsedOptions {
   from?: string;
   to?: string;
@@ -741,17 +773,42 @@ function formatProjectsSet(summary: ProjectsSetSummary): string {
   return lines.join("\n");
 }
 
+function formatProjectsAdd(summary: ProjectsAddSummary): string {
+  const lines = [
+    `Added ${summary.added.length} new project name(s); ${summary.known.length} total in ${summary.configPath}.`,
+  ];
+  if (summary.added.length > 0) {
+    lines.push("New:");
+    for (const name of summary.added) lines.push(`  ${name}`);
+  } else {
+    lines.push("(no new names — all were already present)");
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
 function formatSummaryResult(result: SummaryResult): string {
   const lines: string[] = [];
   const range =
     result.from || result.to
       ? ` in ${result.from ?? "*"}..${result.to ?? "*"}`
       : "";
-  lines.push(`Found ${result.messages.length} debrief message(s)${range}:`);
-  for (const msg of result.messages) {
-    const preview = msg.text.replace(/\s+/g, " ").slice(0, 80);
-    lines.push(`  ${msg.date}  ${msg.ts}  ${msg.channel}  ${preview}`);
+  lines.push(`Projects (${result.projects.length})${range}:`);
+  for (const project of result.projects) {
+    const hours = project.hours.toFixed(2);
+    const missing =
+      project.entriesWithoutHours > 0
+        ? ` (+${project.entriesWithoutHours} no-hours)`
+        : "";
+    lines.push(
+      `  ${project.project}  ${project.entries} entry/entries  ${hours}h${missing}  ${project.firstDate}..${project.lastDate}`,
+    );
   }
+  lines.push(
+    `Totals: ${result.totals.entries} entries, ${result.totals.hours.toFixed(
+      2,
+    )}h (+${result.totals.entriesWithoutHours} no-hours).`,
+  );
   lines.push(`Storage: ${result.storagePath}`);
   lines.push("");
   return lines.join("\n");

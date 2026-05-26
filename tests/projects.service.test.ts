@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import projectNameSuggestions from "../src/constants/project-name-suggestions.ts";
 import {
+  addKnownProjects,
   listProjects,
   setKnownProjects,
 } from "../src/services/projects.service.ts";
@@ -108,6 +109,83 @@ describe("setKnownProjects", () => {
     let caught: unknown;
     try {
       await setKnownProjects({ names: ["A", ""] }, { configPath });
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as { code?: string })?.code).toBe("setup-invalid");
+  });
+});
+
+describe("addKnownProjects", () => {
+  test("adds names to empty known with dedup, trim, sort", async () => {
+    const configPath = await makeTempConfigPath();
+    const summary = await addKnownProjects(
+      { names: ["Venulog", "Metabase", "Venulog", " internal-tools "] },
+      { configPath },
+    );
+    expect(summary.applied).toBe(true);
+    expect(summary.known).toEqual(["Metabase", "Venulog", "internal-tools"]);
+    expect(summary.added).toEqual(["Metabase", "Venulog", "internal-tools"]);
+    expect(summary.configPath).toBe(configPath);
+
+    const written = JSON.parse(
+      await readFile(configPath, "utf8"),
+    ) as LogWorksConfig;
+    expect(written.projects?.known).toEqual([
+      "Metabase",
+      "Venulog",
+      "internal-tools",
+    ]);
+  });
+
+  test("upsert keeps existing entries and reports only the new names in added", async () => {
+    const configPath = await makeTempConfigPath();
+    await setKnownProjects({ names: ["Alpha", "Beta"] }, { configPath });
+    const summary = await addKnownProjects(
+      { names: ["Beta", "Gamma", "Delta"] },
+      { configPath },
+    );
+    expect(summary.known).toEqual(["Alpha", "Beta", "Delta", "Gamma"]);
+    expect(summary.added).toEqual(["Delta", "Gamma"]);
+  });
+
+  test("adding only already-known names yields added: []", async () => {
+    const configPath = await makeTempConfigPath();
+    await setKnownProjects({ names: ["A", "B"] }, { configPath });
+    const summary = await addKnownProjects(
+      { names: ["B", "A"] },
+      { configPath },
+    );
+    expect(summary.added).toEqual([]);
+    expect(summary.known).toEqual(["A", "B"]);
+  });
+
+  test("empty names array leaves known unchanged with added: []", async () => {
+    const configPath = await makeTempConfigPath();
+    await setKnownProjects({ names: ["A"] }, { configPath });
+    const summary = await addKnownProjects({ names: [] }, { configPath });
+    expect(summary.added).toEqual([]);
+    expect(summary.known).toEqual(["A"]);
+  });
+
+  test("rejects payload missing names with setup-invalid", async () => {
+    const configPath = await makeTempConfigPath();
+    let caught: unknown;
+    try {
+      await addKnownProjects({} as unknown as { names: string[] }, {
+        configPath,
+      });
+    } catch (error) {
+      caught = error;
+    }
+    expect((caught as { code?: string })?.code).toBe("setup-invalid");
+  });
+
+  test("rejects empty-string entries with setup-invalid", async () => {
+    const configPath = await makeTempConfigPath();
+    let caught: unknown;
+    try {
+      await addKnownProjects({ names: ["A", ""] }, { configPath });
     } catch (error) {
       caught = error;
     }

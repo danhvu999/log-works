@@ -1,23 +1,18 @@
 import { loadConfig, resolveStoragePath } from "../config/config.manager.ts";
 import type {
   LogWorksConfig,
-  SummaryRawDebrief,
+  SummaryProjectAggregate,
   SummaryResult,
+  SummaryTotals,
+  WorkLogEntry,
 } from "../types/index.ts";
-import { isDebriefText } from "./debrief-filter.ts";
-import { effectiveDateForMessage } from "./derive.service.ts";
+import { filterWorkLogs } from "./export.service.ts";
 import { readDatabase } from "./storage.service.ts";
 
 export interface SummarizeStorageInput {
   from?: string;
   to?: string;
   config?: LogWorksConfig;
-}
-
-function inRange(date: string, from?: string, to?: string): boolean {
-  if (from && date < from) return false;
-  if (to && date > to) return false;
-  return true;
 }
 
 export async function summarizeStorage(
@@ -27,26 +22,64 @@ export async function summarizeStorage(
   const storagePath = resolveStoragePath(config);
   const database = await readDatabase(storagePath);
 
-  const messages: SummaryRawDebrief[] = [];
-  for (const message of database.rawMessages) {
-    const date = effectiveDateForMessage(message);
-    if (!inRange(date, input.from, input.to)) continue;
-    if (!isDebriefText(message.text)) continue;
-    messages.push({
-      ts: message.ts,
-      date,
-      channel: message.channel,
-      text: message.text,
-    });
-  }
-  messages.sort((a, b) =>
-    a.date === b.date ? a.ts.localeCompare(b.ts) : a.date.localeCompare(b.date),
-  );
+  const entries = filterWorkLogs(database.workLogs, {
+    from: input.from,
+    to: input.to,
+  });
+
+  const projects = aggregateByProject(entries);
+  const totals = computeTotals(projects);
 
   return {
-    messages,
+    projects,
+    totals,
     storagePath,
     from: input.from,
     to: input.to,
   };
+}
+
+function aggregateByProject(
+  entries: WorkLogEntry[],
+): SummaryProjectAggregate[] {
+  const buckets = new Map<string, SummaryProjectAggregate>();
+  for (const entry of entries) {
+    let bucket = buckets.get(entry.project);
+    if (!bucket) {
+      bucket = {
+        project: entry.project,
+        entries: 0,
+        hours: 0,
+        entriesWithoutHours: 0,
+        firstDate: entry.date,
+        lastDate: entry.date,
+      };
+      buckets.set(entry.project, bucket);
+    }
+    bucket.entries += 1;
+    if (entry.hours === null || entry.hours === undefined) {
+      bucket.entriesWithoutHours += 1;
+    } else {
+      bucket.hours += entry.hours;
+    }
+    if (entry.date < bucket.firstDate) bucket.firstDate = entry.date;
+    if (entry.date > bucket.lastDate) bucket.lastDate = entry.date;
+  }
+  return [...buckets.values()].sort((a, b) =>
+    a.project.localeCompare(b.project),
+  );
+}
+
+function computeTotals(projects: SummaryProjectAggregate[]): SummaryTotals {
+  const totals: SummaryTotals = {
+    entries: 0,
+    hours: 0,
+    entriesWithoutHours: 0,
+  };
+  for (const p of projects) {
+    totals.entries += p.entries;
+    totals.hours += p.hours;
+    totals.entriesWithoutHours += p.entriesWithoutHours;
+  }
+  return totals;
 }
