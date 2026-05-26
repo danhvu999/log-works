@@ -31,7 +31,7 @@ Every command accepts `--json`.
 
 ## MCP surface
 
-Every command above is also exposed by the MCP server (`src/mcp.ts`) as a tool named `log_works_<command_with_underscores>` (e.g. `log_works_netdok_worklogs`). Tool inputs mirror CLI flags 1:1 with two adjustments:
+Every command above is also exposed by the MCP server (`src/mcp.ts`) as a tool named `log_works_<command_with_underscores>` (e.g. `log_works_netdok_worklogs`) — **except `log-works derive`, which is CLI-only**. The rule parser is too strict for varied debrief formats, so the MCP path uses `log_works_unparsed` + `log_works_ingest_entries` (smart-parse loop) instead. Tool inputs mirror CLI flags 1:1 with two adjustments:
 
 - `--apply` becomes a boolean `apply` argument (default `false`).
 - `log_works_export` requires `outPath` (no stdout pipe in MCP).

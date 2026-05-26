@@ -57,6 +57,7 @@ Local storage maintenance commands, also preview by default and only mutate when
 
 - Each command's logic lives in a callable service function, decoupled from the CLI handler.
 - `src/mcp.ts` is the MCP entry point and exposes one tool per CLI command, named `log_works_<command_with_underscores>`. Stdio transport via `@modelcontextprotocol/sdk`.
+- `log_works_derive` is intentionally NOT exposed via MCP. The rule parser remains available via `log-works derive` for power-user / debug use, but the MCP parsing path is `log_works_unparsed` → `log_works_ingest_entries` (smart-parse loop) so the LLM handles format variety.
 - Tool inputs use Zod schemas mirroring CLI flags; tool outputs reuse the existing service result types (`FetchSummary`, `DeriveSummary`, `ExportSummary`, `SummaryResult`, `NetdokTaskSyncResult`, `NetdokWorklogSyncResult`, `StorageClearNetdokSummary`, `StorageResetSummary`, redacted `LogWorksConfig`).
 - Errors are surfaced as `{ isError: true, content: [{ type: "text", text: <errorResponse JSON> }] }` so MCP clients see the same typed `code`/`message` shape as the CLI's `--json` errors.
 - `log_works_export` requires `outPath` — MCP cannot stream binary xlsx; the file is written to disk and the tool returns the summary.

@@ -29,7 +29,6 @@ describe("MCP wrapper", () => {
         "log_works_config_setup_netdok_discover",
         "log_works_config_setup_slack",
         "log_works_config_show",
-        "log_works_derive",
         "log_works_export",
         "log_works_fetch",
         "log_works_ingest_entries",
@@ -75,7 +74,6 @@ describe("MCP wrapper", () => {
     expect(instructions).toMatch(/Never bundle|never bundle/);
     expect(instructions).toMatch(/preview/i);
     expect(instructions).toContain("taskUrl");
-    expect(instructions).toContain("smartParseHint");
     expect(instructions).toContain("log_works_unparsed");
     expect(instructions).toContain("DEBRIEF FILTER");
     expect(instructions).toContain("includeNonDebrief");

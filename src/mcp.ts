@@ -8,7 +8,6 @@ import {
   setConfigValue,
 } from "./config/config.manager.ts";
 import { errorResponse } from "./output.ts";
-import { deriveWorkLogs } from "./services/derive.service.ts";
 import { exportWorkLogs } from "./services/export.service.ts";
 import { fetchWorkLogs } from "./services/fetch.service.ts";
 import { syncNetdokTasks } from "./services/netdok-tasks.service.ts";
@@ -81,14 +80,14 @@ If the user's request is unrelated to Slack debriefs / Netdok worklogs / log-wor
 When you do use the server, follow the two-stage setup protocol. Before invoking any other tool in a fresh session, call log_works_config_check. Respect the \`nextStep\` field in its result:
 
 - "setup-slack": prompt the user only for Slack credentials (userToken, userId, channels) and call log_works_config_setup_slack. Do NOT also prompt for Netdok in the same exchange.
-- "fetch-and-derive": Slack is ready and Netdok is either deferred or not requested. Proceed to log_works_fetch and log_works_derive when the user asks.
+- "fetch-and-derive": Slack is ready and Netdok is either deferred or not requested. Proceed to log_works_fetch (with \`from: "lastmonth"\` for first-run setup) then the smart-parse loop (log_works_unparsed → log_works_ingest_entries). log_works_derive is intentionally NOT exposed via MCP — it lives in the CLI only because the rule parser is too strict for varied debrief formats.
 - "setup-netdok-discover": Slack is ready and the user wants to sync. Ask for the Netdok API key, call log_works_config_setup_netdok_discover (apiKey only), present workspaces, then re-call discover with workspaceId. Before moving on to apply, ask the user whether any of their projects should run in pinned-task mode (all hours under one fixed task, e.g. retainer / support); if yes, re-call discover with includeTasks=true so they can pick a taskId from \`projectTasks\`.
 - "setup-netdok-apply": Netdok base keys are set; assemble project mappings (use the readiness result's knownLocalProjects) and call log_works_config_setup_netdok_apply. For each project decide: weekly-wrapper mode (set sprintId + statusId) OR pinned-task mode (set pinnedTaskId, omit sprintId/statusId). Modes can be mixed across projects in one call.
 - "ready": call log_works_netdok_tasks / log_works_netdok_worklogs as the user requests.
 
 Never bundle Slack and Netdok setup in one user-facing prompt. Slack always comes first.
 
-NEW-USER HAPPY PATH. For a brand-new user (nextStep walks "setup-slack" → "fetch-and-derive" → "setup-netdok-discover"), always run: log_works_config_setup_slack → log_works_fetch with \`from: "lastmonth"\` (bounded to the last 30 days during setup so the first-run fetch stays small) → log_works_derive → log_works_unparsed (and log_works_ingest_entries if any failing messages need review) → log_works_config_setup_netdok_discover → log_works_config_setup_netdok_apply → preview log_works_netdok_tasks → confirm + apply → preview log_works_netdok_worklogs → confirm + apply. Fetch MUST precede Netdok discovery so log_works_config_check.netdok.knownLocalProjects reflects real project names from the user's debriefs; otherwise the agent can only pick from the static seed list and the user has to type project names manually.
+NEW-USER HAPPY PATH. For a brand-new user (nextStep walks "setup-slack" → "fetch-and-derive" → "setup-netdok-discover"), always run: log_works_config_setup_slack → log_works_fetch with \`from: "lastmonth"\` (bounded to the last 30 days during setup so the first-run fetch stays small) → log_works_unparsed → log_works_ingest_entries (for every message returned, propose structured entries with the user and write them as \`source: "smart"\`) → log_works_summary (raw debrief texts so the agent infers the project-name list) → log_works_config_setup_netdok_discover → log_works_config_setup_netdok_apply → preview log_works_netdok_tasks → confirm + apply → preview log_works_netdok_worklogs → confirm + apply. There is no MCP derive step — the rule parser is CLI-only. Fetch MUST precede Netdok discovery so log_works_summary can hand the agent real debrief texts to mine for project names instead of guessing from the seed list.
 
 MUTATING NETDOK CALLS (preview → approve → apply). \`log_works_netdok_tasks\` and \`log_works_netdok_worklogs\` are the only mutating Netdok tools. Both must be called twice:
 1. First call without \`apply\` (or \`apply: false\`). This is a preview — no Netdok writes.
@@ -100,9 +99,9 @@ POST-SYNC SUMMARY. After a successful \`apply: true\` response, write a short su
 
 DEBRIEF FILTER. log_works_fetch only stores Slack messages whose text contains the case-insensitive substring \`debrief\` (so chatter and Brief-only notes never reach the local DB). The result's \`droppedNonDebrief\` field reports how many were filtered. Only pass \`includeNonDebrief: true\` when the user explicitly asks to "fetch everything" / "include all messages" / debug why a message is missing — otherwise leave it off so derive and the smart-parse loop stay focused on real debriefs.
 
-After log_works_fetch or log_works_derive succeeds, inspect the optional \`netdokHint\` field on the result. When present, it means either Netdok is not yet configured (\`configured: false\`) or some projects in the just-processed range are missing from \`netdok.projects\` (\`unmappedProjects\`). Prompt the user to run the Netdok setup flow for those projects — still without bundling Slack prompts.
+After log_works_fetch succeeds, inspect the optional \`netdokHint\` field on the result. When present, it means either Netdok is not yet configured (\`configured: false\`) or some projects in the just-fetched range are missing from \`netdok.projects\` (\`unmappedProjects\`). Prompt the user to run the Netdok setup flow for those projects — still without bundling Slack prompts.
 
-SMART-PARSE LOOP. After log_works_derive succeeds, ALWAYS call log_works_unparsed next — it is the canonical second step of derive, not a conditional follow-up. Do NOT gate this on \`smartParseHint\`. The hint is a status indicator (how many failures to expect from the rule parser); the loop runs whether or not the hint is present. If log_works_unparsed returns a non-empty \`messages\` array, propose structured entries (project, text, hours per bullet) to the user, confirm, then call log_works_ingest_entries to write them back as \`source: "smart"\`. If it returns an empty array, mention "no unparsed messages" briefly and move on. Skip the loop only if the user explicitly opts out.
+SMART-PARSE LOOP. After log_works_fetch succeeds, ALWAYS call log_works_unparsed next — it is the canonical parsing step in MCP. There is no log_works_derive tool here; the rule parser stays CLI-only because debrief formats vary too widely for it. If log_works_unparsed returns a non-empty \`messages\` array, propose structured entries (project, text, hours per bullet) to the user, confirm, then call log_works_ingest_entries to write them back as \`source: "smart"\`. If it returns an empty array, say "no debrief messages to parse" briefly and move on. Skip the loop only if the user explicitly opts out.
 
 log_works_summary returns the raw text of every debrief message in the local DB so the agent (you) can infer the canonical project-name list directly from the text. The rule parser is intentionally NOT involved — debrief formats vary and the LLM is better at extracting project names from unstructured prose than a strict regex. Call it: (a) right before log_works_config_setup_netdok_apply so the project mapping uses real names from the user's debriefs; (b) when the user asks "what did I write about?" / "what projects show up in my debriefs?". Do not call it as part of fetch / derive / smart-parse / netdok-sync flows that do not need a project-name catalogue.`;
 
@@ -178,20 +177,6 @@ export function createServer(): McpServer {
       }).shape,
     },
     async (input) => run(() => fetchWorkLogs(input)),
-  );
-
-  server.registerTool(
-    "log_works_derive",
-    {
-      title: "Derive work-logs",
-      description:
-        "Parse local raw Slack messages into structured WorkLogEntry rows. Idempotent on ${ts}#${bulletIndex}. After this tool succeeds, the agent MUST call log_works_unparsed next as the canonical second step — regardless of whether smartParseHint is present. The hint reports how many failures to expect; it is not the trigger. The result may include an optional `netdokHint` field listing projects in the just-derived range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup. The result may also include `smartParseHint` with `emptyCount` / `partialCount` / `totalNeedingReview` summarising how many raw messages need smart-parse review.",
-      inputSchema: z.object({
-        from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
-        to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),
-      }).shape,
-    },
-    async (input) => run(() => deriveWorkLogs(input)),
   );
 
   server.registerTool(
