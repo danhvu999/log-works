@@ -13,6 +13,7 @@ import { exportWorkLogs } from "./services/export.service.ts";
 import { fetchWorkLogs } from "./services/fetch.service.ts";
 import { syncNetdokTasks } from "./services/netdok-tasks.service.ts";
 import { syncNetdokWorklogs } from "./services/netdok-worklogs.service.ts";
+import { listProjects, setKnownProjects } from "./services/projects.service.ts";
 import {
   checkConfigReadiness,
   setupNetdokApply,
@@ -40,6 +41,8 @@ import type {
   NetdokHint,
   NetdokTaskSyncResult,
   NetdokWorklogSyncResult,
+  ProjectsListResult,
+  ProjectsSetSummary,
   SlackSetupSummary,
   SmartIngestInputEntry,
   SmartIngestSummary,
@@ -152,6 +155,17 @@ export const COMMAND_SPECS: CommandSpec[] = [
       { name: "--from", takesValue: true },
       { name: "--to", takesValue: true },
     ],
+  },
+  {
+    name: "projects list",
+    summary: "List server suggestions + user-confirmed project vocabulary",
+    options: COMMON_OPTIONS,
+  },
+  {
+    name: "projects set",
+    summary:
+      "Replace config.projects.known with the supplied comma-separated list",
+    options: [...COMMON_OPTIONS, { name: "--names", takesValue: true }],
   },
   {
     name: "netdok tasks",
@@ -419,6 +433,35 @@ export function createProgram(): Command {
       emit(result, Boolean(options.json), formatSummaryResult);
     });
 
+  const projectsCommand = program
+    .command("projects")
+    .description("Manage the user-confirmed project vocabulary");
+
+  projectsCommand
+    .command("list")
+    .description("List server suggestions + persisted known project names")
+    .option("--json", "Print machine-readable JSON")
+    .action(async (options: ProjectsListOptions) => {
+      const result = await listProjects();
+      emit(result, Boolean(options.json), formatProjectsList);
+    });
+
+  projectsCommand
+    .command("set")
+    .description(
+      "Replace config.projects.known with the supplied list (comma-separated)",
+    )
+    .requiredOption("--names <list>", "Comma-separated project names")
+    .option("--json", "Print machine-readable JSON")
+    .action(async (options: ProjectsSetOptions) => {
+      const names = options.names
+        .split(",")
+        .map((name) => name.trim())
+        .filter(Boolean);
+      const result = await setKnownProjects({ names });
+      emit(result, Boolean(options.json), formatProjectsSet);
+    });
+
   const netdokCommand = program
     .command("netdok")
     .description("Sync work-logs into Netdok");
@@ -552,6 +595,15 @@ interface SummaryOptions {
   json?: boolean;
 }
 
+interface ProjectsListOptions {
+  json?: boolean;
+}
+
+interface ProjectsSetOptions {
+  names: string;
+  json?: boolean;
+}
+
 interface ParseListUnparsedOptions {
   from?: string;
   to?: string;
@@ -661,6 +713,32 @@ function appendNetdokHintLines(
   if (hint.suggestion) {
     lines.push(`  Suggestion: ${hint.suggestion}`);
   }
+}
+
+function formatProjectsList(result: ProjectsListResult): string {
+  const lines: string[] = [];
+  lines.push(`Suggestions (${result.suggestions.length}):`);
+  for (const name of result.suggestions) lines.push(`  ${name}`);
+  lines.push(`Known (${result.known.length}):`);
+  if (result.known.length === 0) {
+    lines.push("  (none — run `projects set --names ...` to populate)");
+  } else {
+    for (const name of result.known) lines.push(`  ${name}`);
+  }
+  lines.push(`Merged (${result.merged.length}):`);
+  for (const name of result.merged) lines.push(`  ${name}`);
+  lines.push(`Config: ${result.configPath}`);
+  lines.push("");
+  return lines.join("\n");
+}
+
+function formatProjectsSet(summary: ProjectsSetSummary): string {
+  const lines = [
+    `Saved ${summary.known.length} project name(s) to ${summary.configPath}.`,
+  ];
+  for (const name of summary.known) lines.push(`  ${name}`);
+  lines.push("");
+  return lines.join("\n");
 }
 
 function formatSummaryResult(result: SummaryResult): string {

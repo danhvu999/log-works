@@ -128,6 +128,15 @@ Local storage maintenance commands, also preview by default and only mutate when
 - Shape: `{ configured: boolean, unmappedProjects: string[], suggestion?: string }`. `suggestion` re-uses the same wording branches as `config check` so the two tools agree.
 - Informational only: `netdok tasks` / `netdok worklogs` still raise `config-missing` strictly when invoked without the required keys.
 
+### FR9 — User-confirmed project vocabulary
+
+- Two MCP tools / CLI subcommands:
+  - `log_works_projects_list` (CLI: `log-works projects list`) — returns `{ suggestions, known, merged, configPath }`. `suggestions` is `src/constants/project-name-suggestions.ts`; `known` is `config.projects.known`; `merged` is the deduped union, sorted.
+  - `log_works_projects_set` (CLI: `log-works projects set --names "a,b,c"`) — REPLACE semantics. Writes `config.projects.known = unique(names).sort()`. Validation failures raise `setup-invalid`.
+- Storage: top-level `config.projects.known: string[]` (separate from `netdok.projects`, which carries Netdok mappings).
+- Purpose: anchor the project field that the MCP smart-parse loop writes into `workLogs`. The agent calls `list` before `log_works_unparsed`, walks the user through confirm/add, persists via `set`, then uses the persisted list as context when proposing structured entries to `log_works_ingest_entries`. Subsequent sessions reload the persisted list automatically.
+- `config_check.netdok.knownLocalProjects` unions in `config.projects.known` so the Netdok-apply flow sees user-confirmed names alongside the static seed list and rule-parser-derived names.
+
 ### FR-SETUP — Guided config setup (external agent, Slack-first)
 
 `log-works` exposes four commands (MCP + CLI) for filling out `~/.log-works/config.json` without
@@ -178,6 +187,8 @@ log-works parse list-unparsed [--from <date>] [--to <date>] [--no-partial]
 log-works parse ingest [--file <path>]
 log-works export --format <csv|json|xlsx> [--from <date>] [--to <date>] [--status <s>] [--out <file>]
 log-works summary [--from <date>] [--to <date>]
+log-works projects list
+log-works projects set --names <a,b,c>
 log-works netdok tasks    [--from <date>] [--to <date>] [--apply]
 log-works netdok worklogs [--from <date>] [--to <date>] [--apply]
 log-works storage clear-netdok [--from <date>] [--to <date>] [--apply]
@@ -202,6 +213,7 @@ All commands accept `--json` and respect `LOG_WORKS_CONFIG` env override.
   - `netdok.projects.<name>.{projectId,sprintId?,statusId?,pinnedTaskId?,assigneeIds?}` — map local project name → Netdok project. `projectId` is always required. `sprintId` and `statusId` are required only when the project uses weekly wrappers (default mode); the sync errors out with `config-missing` if either is absent and `pinnedTaskId` is not set. When `pinnedTaskId` is set, the project bypasses the weekly-wrapper flow and posts all worklogs under that fixed task.
   - `netdok.authHeader` — **deprecated**, kept for back-compat
   - `storage.path` — defaults to `~/.log-works/db.json`
+  - `projects.known[]` — user-confirmed project-name vocabulary; used as parsing context by the MCP smart-parse loop. Written via `log_works_projects_set` / `log-works projects set`. No env override.
 - Any key may be overridden by `LOG_WORKS_<UPPER_KEY>` env var.
 - Secrets live in the same config file in v1. Risk documented; future versions may move to OS keychain.
 

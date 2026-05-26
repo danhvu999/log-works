@@ -12,6 +12,7 @@ import { exportWorkLogs } from "./services/export.service.ts";
 import { fetchWorkLogs } from "./services/fetch.service.ts";
 import { syncNetdokTasks } from "./services/netdok-tasks.service.ts";
 import { syncNetdokWorklogs } from "./services/netdok-worklogs.service.ts";
+import { listProjects, setKnownProjects } from "./services/projects.service.ts";
 import {
   checkConfigReadiness,
   setupNetdokApply,
@@ -87,7 +88,7 @@ When you do use the server, follow the two-stage setup protocol. Before invoking
 
 Never bundle Slack and Netdok setup in one user-facing prompt. Slack always comes first.
 
-NEW-USER HAPPY PATH. For a brand-new user (nextStep walks "setup-slack" → "fetch-and-derive" → "setup-netdok-discover"), always run: log_works_config_setup_slack → log_works_fetch with \`from: "lastmonth"\` (bounded to the last 30 days during setup so the first-run fetch stays small) → log_works_unparsed → log_works_ingest_entries (for every message returned, propose structured entries with the user and write them as \`source: "smart"\`) → log_works_summary (raw debrief texts so the agent infers the project-name list) → log_works_config_setup_netdok_discover → log_works_config_setup_netdok_apply → preview log_works_netdok_tasks → confirm + apply → preview log_works_netdok_worklogs → confirm + apply. There is no MCP derive step — the rule parser is CLI-only. Fetch MUST precede Netdok discovery so log_works_summary can hand the agent real debrief texts to mine for project names instead of guessing from the seed list.
+NEW-USER HAPPY PATH. For a brand-new user (nextStep walks "setup-slack" → "fetch-and-derive" → "setup-netdok-discover"), always run: log_works_config_setup_slack → log_works_fetch with \`from: "lastmonth"\` (bounded to the last 30 days during setup so the first-run fetch stays small) → log_works_projects_list → confirm/add project names with the user → log_works_projects_set (persist the full final list) → log_works_unparsed → log_works_ingest_entries (for every message returned, propose structured entries with the user and write them as \`source: "smart"\`, drawing project names from the persisted vocabulary) → log_works_summary (raw debrief texts so the agent infers any project names still missing) → log_works_config_setup_netdok_discover → log_works_config_setup_netdok_apply → preview log_works_netdok_tasks → confirm + apply → preview log_works_netdok_worklogs → confirm + apply. There is no MCP derive step — the rule parser is CLI-only. Fetch MUST precede the project vocabulary step so log_works_summary can hand the agent real debrief texts to mine for project names instead of guessing from the seed list.
 
 MUTATING NETDOK CALLS (preview → approve → apply). \`log_works_netdok_tasks\` and \`log_works_netdok_worklogs\` are the only mutating Netdok tools. Both must be called twice:
 1. First call without \`apply\` (or \`apply: false\`). This is a preview — no Netdok writes.
@@ -100,6 +101,8 @@ POST-SYNC SUMMARY. After a successful \`apply: true\` response, write a short su
 DEBRIEF FILTER. log_works_fetch only stores Slack messages whose text contains the case-insensitive substring \`debrief\` (so chatter and Brief-only notes never reach the local DB). The result's \`droppedNonDebrief\` field reports how many were filtered. Only pass \`includeNonDebrief: true\` when the user explicitly asks to "fetch everything" / "include all messages" / debug why a message is missing — otherwise leave it off so derive and the smart-parse loop stay focused on real debriefs.
 
 After log_works_fetch succeeds, inspect the optional \`netdokHint\` field on the result. When present, it means either Netdok is not yet configured (\`configured: false\`) or some projects in the just-fetched range are missing from \`netdok.projects\` (\`unmappedProjects\`). Prompt the user to run the Netdok setup flow for those projects — still without bundling Slack prompts.
+
+PROJECT VOCABULARY. Before running the smart-parse loop, call log_works_projects_list and show \`merged\` to the user: "Which of these are your current projects? Add any new ones, drop any you no longer work on." Once the user confirms, call log_works_projects_set with the full final list (REPLACE semantics — pass everything they want kept). Then use the persisted \`known\` list as context when proposing structured entries during log_works_ingest_entries: prefer names already in \`known\`, only invent a new name when the debrief clearly mentions a project not in the list. On subsequent sessions the persisted list reloads automatically — only re-prompt the user if a new debrief references unfamiliar project names.
 
 SMART-PARSE LOOP. After log_works_fetch succeeds, ALWAYS call log_works_unparsed next — it is the canonical parsing step in MCP. There is no log_works_derive tool here; the rule parser stays CLI-only because debrief formats vary too widely for it. If log_works_unparsed returns a non-empty \`messages\` array, propose structured entries (project, text, hours per bullet) to the user, confirm, then call log_works_ingest_entries to write them back as \`source: "smart"\`. If it returns an empty array, say "no debrief messages to parse" briefly and move on. Skip the loop only if the user explicitly opts out.
 
@@ -217,6 +220,35 @@ export function createServer(): McpServer {
       }).shape,
     },
     async (input) => run(() => summarizeStorage(input)),
+  );
+
+  server.registerTool(
+    "log_works_projects_list",
+    {
+      title: "List the user's known project vocabulary",
+      description:
+        "Returns the project-name vocabulary the agent should use as parsing context. Three fields: `suggestions` (server seed list from src/constants/project-name-suggestions.ts), `known` (names the user has previously confirmed and persisted under config.projects.known), `merged` (union, dedup, sorted). Call this right before log_works_unparsed so the LLM has a stable project vocabulary; show `merged` to the user, let them confirm or add, then persist via log_works_projects_set.",
+      inputSchema: z.object({}).shape,
+    },
+    async () => run(() => listProjects()),
+  );
+
+  server.registerTool(
+    "log_works_projects_set",
+    {
+      title: "Persist user-confirmed project names",
+      description:
+        "Replace config.projects.known with the supplied list. REPLACE semantics — pass the full final list, not a delta. Names are trimmed, deduped, and sorted before persisting. Use after log_works_projects_list once the user has confirmed their working project names. To drop a stale project, omit it from `names`. Pass an empty list to clear the vocabulary entirely.",
+      inputSchema: z.object({
+        names: z
+          .array(z.string().min(1))
+          .max(200)
+          .describe(
+            "Full list of project names the user wants persisted. Replaces any previously stored list.",
+          ),
+      }).shape,
+    },
+    async (input) => run(() => setKnownProjects(input)),
   );
 
   server.registerTool(

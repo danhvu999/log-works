@@ -17,6 +17,8 @@ log-works parse list-unparsed [--from <date>] [--to <date>] [--no-partial]
 log-works parse ingest [--file <path>]
 log-works export --format <csv|json|xlsx> [--from <date>] [--to <date>] [--status <pending|sent|failed>] [--out <file>]
 log-works summary [--from <date>] [--to <date>]
+log-works projects list
+log-works projects set --names <a,b,c>
 log-works netdok tasks    [--from <date>] [--to <date>] [--apply]
 log-works netdok worklogs [--from <date>] [--to <date>] [--apply]
 log-works storage clear-netdok [--from <date>] [--to <date>] [--apply]
@@ -77,6 +79,31 @@ Tool outputs are the same JSON shapes documented below; errors use `{ isError: t
 ```
 
 Read-only. Returns every raw debrief message in range. The agent (LLM) is expected to infer project names from `text` — the tool does not parse. Messages are sorted by `date` asc (ties broken by `ts`). Each message's `date` uses the same `effectiveDateForMessage` logic as `derive`. `isDebriefText` (case-insensitive `/debrief/i`) filters out anything that slipped past the fetch filter, so non-debrief / Brief-only / chatter never appears.
+
+### `projects list` JSON
+
+```json
+{
+  "suggestions": ["Dealer tools", "Loopengers", "Metabase", "Venulog", "…"],
+  "known": ["Metabase", "Venulog", "internal-tools"],
+  "merged": ["Dealer tools", "Loopengers", "Metabase", "Venulog", "internal-tools", "…"],
+  "configPath": "/home/you/.log-works/config.json"
+}
+```
+
+`suggestions` is the static seed list from `src/constants/project-name-suggestions.ts`. `known` is `config.projects.known` (user-confirmed). `merged` is the deduped union, sorted. The MCP equivalent is `log_works_projects_list` (no input).
+
+### `projects set` JSON
+
+```json
+{
+  "applied": true,
+  "known": ["Metabase", "Venulog", "internal-tools"],
+  "configPath": "/home/you/.log-works/config.json"
+}
+```
+
+REPLACE semantics — `config.projects.known` becomes exactly the supplied list (trimmed, deduped, sorted). To clear, pass an empty list. Bad payloads raise `setup-invalid`. The MCP equivalent is `log_works_projects_set` with `{ names: string[] }`.
 
 ### `netdok tasks` JSON
 

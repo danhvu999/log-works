@@ -298,7 +298,10 @@ async function collectKnownLocalProjects(
   config: LogWorksConfig | undefined,
 ): Promise<string[]> {
   const scanned = await scanLocalProjectsSeen(config);
-  return [...new Set([...projectNameSuggestions, ...scanned])].sort();
+  const persisted = config?.projects?.known ?? [];
+  return [
+    ...new Set([...projectNameSuggestions, ...scanned, ...persisted]),
+  ].sort();
 }
 
 export async function checkSlackReadiness(

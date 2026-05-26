@@ -103,6 +103,22 @@ export interface LogWorksConfig {
   storage?: {
     path?: string;
   };
+  projects?: {
+    known?: string[];
+  };
+}
+
+export interface ProjectsListResult {
+  suggestions: string[];
+  known: string[];
+  merged: string[];
+  configPath: string;
+}
+
+export interface ProjectsSetSummary {
+  applied: true;
+  known: string[];
+  configPath: string;
 }
 
 export interface SlackFixtureMessage {

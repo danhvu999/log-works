@@ -34,6 +34,8 @@ describe("MCP wrapper", () => {
         "log_works_ingest_entries",
         "log_works_netdok_tasks",
         "log_works_netdok_worklogs",
+        "log_works_projects_list",
+        "log_works_projects_set",
         "log_works_storage_clear_netdok",
         "log_works_storage_reset",
         "log_works_summary",
@@ -75,6 +77,8 @@ describe("MCP wrapper", () => {
     expect(instructions).toMatch(/preview/i);
     expect(instructions).toContain("taskUrl");
     expect(instructions).toContain("log_works_unparsed");
+    expect(instructions).toContain("PROJECT VOCABULARY");
+    expect(instructions).toContain("log_works_projects_list");
     expect(instructions).toContain("DEBRIEF FILTER");
     expect(instructions).toContain("includeNonDebrief");
     expect(instructions).toMatch(/ALWAYS call log_works_unparsed/);

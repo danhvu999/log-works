@@ -592,6 +592,16 @@ describe("checkNetdokReadiness", () => {
     expect(result.suggestion).toMatch(/Ready\./);
   });
 
+  test("knownLocalProjects includes names persisted in config.projects.known", async () => {
+    const result = await checkNetdokReadiness({
+      config: {
+        projects: { known: ["internal-tools", "support"] },
+      },
+    });
+    expect(result.knownLocalProjects).toContain("internal-tools");
+    expect(result.knownLocalProjects).toContain("support");
+  });
+
   test("knownLocalProjects unions rawMessages scan with constants", async () => {
     tempDir = await mkdtemp(join(tmpdir(), "log-works-readiness-"));
     const dbPath = join(tempDir, "db.json");
