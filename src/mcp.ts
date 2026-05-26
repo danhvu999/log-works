@@ -88,6 +88,16 @@ When you do use the server, follow the two-stage setup protocol. Before invoking
 
 Never bundle Slack and Netdok setup in one user-facing prompt. Slack always comes first.
 
+NEW-USER HAPPY PATH. For a brand-new user (nextStep walks "setup-slack" → "fetch-and-derive" → "setup-netdok-discover"), always run: log_works_config_setup_slack → log_works_fetch → log_works_derive → log_works_config_setup_netdok_discover → log_works_config_setup_netdok_apply → preview log_works_netdok_tasks → confirm + apply → preview log_works_netdok_worklogs → confirm + apply. Fetch MUST precede Netdok discovery so log_works_config_check.netdok.knownLocalProjects reflects real project names from the user's debriefs; otherwise the agent can only pick from the static seed list and the user has to type project names manually.
+
+MUTATING NETDOK CALLS (preview → approve → apply). \`log_works_netdok_tasks\` and \`log_works_netdok_worklogs\` are the only mutating Netdok tools. Both must be called twice:
+1. First call without \`apply\` (or \`apply: false\`). This is a preview — no Netdok writes.
+2. Present the preview entries to the user in a human-readable form (group by project + week; show wrapper task name or pinned task; for worklogs list date / hours / first line of text and the count per status).
+3. Wait for explicit user confirmation ("yes", "apply", "sync it"). Do NOT infer consent from earlier "log my work" phrasing — the preview is the consent gate.
+4. Only then re-call with \`apply: true\`. Never chain preview and apply in the same agent turn, and never call \`apply: true\` first.
+
+POST-SYNC SUMMARY. After a successful \`apply: true\` response, write a short summary for the user grouped by project. Each project's section must list: the wrapper or pinned task name, total hours posted, and the \`taskUrl\` from the response rendered as a clickable link. Do not reconstruct URLs by hand — always use the \`taskUrl\` field the server returns. For \`log_works_netdok_tasks\` apply responses, surface \`taskUrl\` from \`weeks[*].taskUrl\` / \`pinned[*].taskUrl\`. For \`log_works_netdok_worklogs\` apply responses, surface \`taskUrl\` (and \`projectId\`) from each posted entry; group entries by \`taskUrl\` so each Netdok task appears once with its total hours.
+
 After log_works_fetch or log_works_derive succeeds, inspect the optional \`netdokHint\` field on the result. When present, it means either Netdok is not yet configured (\`configured: false\`) or some projects in the just-processed range are missing from \`netdok.projects\` (\`unmappedProjects\`). Prompt the user to run the Netdok setup flow for those projects — still without bundling Slack prompts.
 
 For setup or planning questions ("what projects are in my logs?", "how many hours did I log on X?"), call log_works_summary instead of exporting + post-processing. It returns aggregate counts and per-project hours straight from the local DB.`;
@@ -219,7 +229,7 @@ export function createServer(): McpServer {
     {
       title: "Sync Netdok wrapper tasks",
       description:
-        "For each (project, ISO-week) in range, ensure a wrapper task '[<Project>] Task issues from <Mon> to <Sun>' exists in Netdok. Previews by default; pass apply=true to create.",
+        "For each (project, ISO-week) in range, ensure a wrapper task '[<Project>] Task issues from <Mon> to <Sun>' exists in Netdok. Previews by default; pass apply=true to create. ALWAYS call with apply omitted first, show the preview entries to the user, wait for explicit confirmation, then re-call with apply=true. Each result entry (in `weeks` and `pinned`) includes `taskUrl` when a taskId is known — render these as clickable links in the post-sync summary instead of building URLs by hand.",
       inputSchema: z.object({
         from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
         to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),
@@ -239,7 +249,7 @@ export function createServer(): McpServer {
     {
       title: "Post Netdok worklogs",
       description:
-        "Post pending work-logs to Netdok under their weekly wrapper task. Dedup: local `sent` status + remote (day, text) fingerprint. Previews by default; pass apply=true to post.",
+        "Post pending work-logs to Netdok under their weekly wrapper task. Dedup: local `sent` status + remote (day, text) fingerprint. Previews by default; pass apply=true to post. ALWAYS call with apply omitted first, show the preview entries (grouped by project + week, with date/hours/text) to the user, wait for explicit confirmation, then re-call with apply=true. Each result entry includes `projectId` and `taskUrl` when known — render `taskUrl` as a clickable link in the post-sync summary instead of building URLs by hand.",
       inputSchema: z.object({
         from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
         to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),

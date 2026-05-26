@@ -69,6 +69,7 @@ const applySchema = z
   .object({
     baseUrl: z.string().url().optional(),
     authBaseUrl: z.string().url().optional(),
+    appBaseUrl: z.string().url().optional(),
     apiKey: z.string().min(1),
     workspaceId: z.string().min(1),
     profileId: z.string().min(1),
@@ -234,6 +235,9 @@ export async function setupNetdokApply(
   }
   if (data.authBaseUrl !== undefined) {
     setConfigValue(config, "netdok.authBaseUrl", data.authBaseUrl);
+  }
+  if (data.appBaseUrl !== undefined) {
+    setConfigValue(config, "netdok.appBaseUrl", data.appBaseUrl);
   }
 
   for (const [localName, mapping] of Object.entries(data.projects)) {

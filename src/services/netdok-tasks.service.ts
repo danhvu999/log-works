@@ -9,6 +9,7 @@ import type {
   WorkLogEntry,
 } from "../types/index.ts";
 import { isoWeekRange, isoWeekTaskName } from "../utils/iso-week.ts";
+import { netdokTaskUrl } from "./netdok-url.ts";
 import { type NetdokClient, createNetdokClient } from "./netdok.service.ts";
 import {
   readDatabase,
@@ -281,10 +282,19 @@ export async function syncNetdokTasks(
     a.project.localeCompare(b.project),
   );
 
+  const weeksWithUrls = weeks.map((week) => {
+    const taskUrl = netdokTaskUrl(config, week.projectId, week.taskId);
+    return taskUrl ? { ...week, taskUrl } : week;
+  });
+  const pinnedWithUrls = pinned.map((slot) => {
+    const taskUrl = netdokTaskUrl(config, slot.projectId, slot.pinnedTaskId);
+    return taskUrl ? { ...slot, taskUrl } : slot;
+  });
+
   return {
-    weeks,
+    weeks: weeksWithUrls,
     unmapped,
-    pinned,
+    pinned: pinnedWithUrls,
     applied: Boolean(options.apply),
     storagePath,
     from: options.from,

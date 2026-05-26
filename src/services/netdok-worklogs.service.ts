@@ -7,6 +7,7 @@ import type {
   WorkLogEntry,
 } from "../types/index.ts";
 import { isoWeekRange } from "../utils/iso-week.ts";
+import { netdokTaskUrl } from "./netdok-url.ts";
 import {
   type NetdokClient,
   type NetdokWorklog,
@@ -249,8 +250,19 @@ export async function syncNetdokWorklogs(
     return a.entryId.localeCompare(b.entryId);
   });
 
+  const enrichedEntries = entries.map((row) => {
+    const projectId = projects[row.project]?.projectId;
+    if (!projectId) return row;
+    const taskUrl = netdokTaskUrl(config, projectId, row.taskId);
+    return {
+      ...row,
+      projectId,
+      ...(taskUrl ? { taskUrl } : {}),
+    };
+  });
+
   return {
-    entries,
+    entries: enrichedEntries,
     applied: Boolean(options.apply),
     storagePath,
     from: options.from,

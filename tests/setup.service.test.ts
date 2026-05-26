@@ -489,6 +489,24 @@ describe("setupNetdokApply", () => {
     expect(written.netdok?.projects?.Venulog?.sprintId).toBe("sprint-1");
   });
 
+  test("persists optional appBaseUrl when provided", async () => {
+    const configPath = await makeTempConfigPath();
+    await setupNetdokApply(
+      {
+        apiKey: "ndk_test",
+        workspaceId: "ws-1",
+        profileId: "profile-1",
+        appBaseUrl: "https://staging.netdok.co",
+        projects: { Venulog: { projectId: "proj-v" } },
+      },
+      { configPath },
+    );
+    const written = JSON.parse(
+      await readFile(configPath, "utf8"),
+    ) as LogWorksConfig;
+    expect(written.netdok?.appBaseUrl).toBe("https://staging.netdok.co");
+  });
+
   test("rejects payload missing apiKey with setup-invalid and writes nothing", async () => {
     const configPath = await makeTempConfigPath();
     let caught: unknown;

@@ -37,6 +37,7 @@ Two commands, both preview by default and only mutate when `--apply` is passed:
 - **Pinned-task mode.** If `netdok.projects.<name>.pinnedTaskId` is set, `netdok tasks` skips wrapper creation for that project (it is reported in the result's `pinned` array) and `netdok worklogs` posts every entry under the pinned `taskId` regardless of week. `sprintId` and `statusId` are not required in pinned mode. Existing `(day, text)` remote-dedup still applies.
 - Track per-entry status: `pending | sent | failed`, with `lastError`, `postedAt`, `postedTaskId`, `postedWorklogId`.
 - Idempotent: an entry already marked `sent` is never re-posted. Remote dedup catches worklogs created out-of-band.
+- Each result entry (in `netdok tasks` `weeks` / `pinned` and `netdok worklogs` `entries`) carries an optional `taskUrl` built from `netdok.appBaseUrl` + `projectId` + `taskId`. Worklog entries also carry `projectId`. These exist so the agent can render clickable Netdok task links in the post-sync summary without fabricating URLs.
 
 Local storage maintenance commands, also preview by default and only mutate when `--apply` is passed:
 
@@ -109,6 +110,12 @@ Local storage maintenance commands, also preview by default and only mutate when
   - `projects[]` — per-project `entries`, `hours` (null hours count as zero), `dateMin`, `dateMax`. Sorted by `hours` desc, ties broken by `project` asc.
 - Optional `--from` / `--to` (`YYYY-MM-DD`, inclusive) scope the aggregation. `rawMessages` uses the same effective-date logic as `derive`; `workLogs` filter by `entry.date`.
 - Exists so agents can plan Netdok project mappings (during `setup-netdok-apply`) or answer "what did I log?" questions without exporting to disk and post-processing externally.
+
+### FR-PREVIEW — Agent-side preview → approve → apply contract
+
+- `netdok tasks` and `netdok worklogs` are the only mutating Netdok tools.
+- The MCP `instructions` string requires the agent to (a) call the tool with `apply` omitted/`false`, (b) present the preview entries to the user, (c) wait for explicit user confirmation, (d) only then re-call with `apply: true`. Preview and apply must not be chained in the same agent turn.
+- Enforced by instructions + tool descriptions, not by service-level state. The CLI behaviour is unchanged — a human operator may still pass `--apply` directly.
 
 ### FR-HINT — Post-success Netdok hint
 
@@ -183,6 +190,7 @@ All commands accept `--json` and respect `LOG_WORKS_CONFIG` env override.
   - `slack.userId` — author filter
   - `slack.channels[]` — channel IDs / DM IDs to pull from
   - `netdok.baseUrl` — e.g. `https://api.netdok.co`
+  - `netdok.appBaseUrl` — UI host, default `https://app.netdok.co`. Used to build `taskUrl` on `netdok tasks` / `netdok worklogs` result entries so the agent can render clickable links in the post-sync summary. Override via `LOG_WORKS_NETDOK_APP_BASE_URL`.
   - `netdok.apiKey` — sent as `x-api-key` header
   - `netdok.workspaceId` — sent as `workspace-id` header
   - `netdok.profileId` — identity for created worklogs

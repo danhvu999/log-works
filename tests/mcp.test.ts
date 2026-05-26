@@ -73,5 +73,7 @@ describe("MCP wrapper", () => {
     expect(instructions).toContain("log_works_config_check");
     expect(instructions).toMatch(/Slack/);
     expect(instructions).toMatch(/Never bundle|never bundle/);
+    expect(instructions).toMatch(/preview/i);
+    expect(instructions).toContain("taskUrl");
   });
 });

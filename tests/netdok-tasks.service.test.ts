@@ -408,6 +408,8 @@ describe("syncNetdokTasks", () => {
         projectId: "proj-l",
         pinnedTaskId: "pinned-task-1",
         entries: 2,
+        taskUrl:
+          "https://app.netdok.co/app/projects/active-sprint?id=proj-l&taskId=pinned-task-1",
       },
     ]);
     expect(state.fetchTaskCalls).toBe(0);
@@ -458,6 +460,85 @@ describe("syncNetdokTasks", () => {
     expect(result.pinned[0]?.project).toBe("Loopengers");
     expect(state.createdTasks).toHaveLength(1);
     expect(state.createdTasks[0]?.projectId).toBe("proj-v");
+  });
+
+  test("populates taskUrl on existing-local / existing-remote / created weeks, omits on would-create", async () => {
+    const db = emptyDatabase();
+    db.workLogs.push(
+      makeEntry({ id: "a#0", date: "2026-05-21" }),
+      makeEntry({ id: "b#0", date: "2026-05-28" }),
+    );
+    db.netdokWeekTasks.push({
+      id: "proj-v#Venulog#2026-05-18",
+      project: "Venulog",
+      projectId: "proj-v",
+      weekStart: "2026-05-18",
+      weekEnd: "2026-05-24",
+      taskId: "existing-task",
+      taskKey: "TP-99",
+      taskName: "[Venulog] Task issues from 2026-05-18 to 2026-05-24",
+      createdAt: "2026-05-18T00:00:00.000Z",
+    });
+    const path = await makeTempDb(db);
+
+    const state: FakeClientState = {
+      tasksByProject: new Map(),
+      createdTasks: [],
+      fetchTaskCalls: 0,
+      createWorklogCalls: 0,
+      fetchWorklogCalls: 0,
+    };
+
+    const result = await syncNetdokTasks({
+      config: { ...baseConfig, storage: { path } },
+      client: makeFakeClient(state),
+    });
+
+    const local = result.weeks.find((w) => w.status === "existing-local");
+    const wouldCreate = result.weeks.find((w) => w.status === "would-create");
+    expect(local?.taskUrl).toBe(
+      "https://app.netdok.co/app/projects/active-sprint?id=proj-v&taskId=existing-task",
+    );
+    expect(wouldCreate?.taskUrl).toBeUndefined();
+  });
+
+  test("appBaseUrl overrides the default Netdok UI host in taskUrl", async () => {
+    const db = emptyDatabase();
+    db.workLogs.push(makeEntry({ id: "a#0", date: "2026-05-21" }));
+    db.netdokWeekTasks.push({
+      id: "proj-v#Venulog#2026-05-18",
+      project: "Venulog",
+      projectId: "proj-v",
+      weekStart: "2026-05-18",
+      weekEnd: "2026-05-24",
+      taskId: "existing-task",
+      taskKey: "TP-99",
+      taskName: "[Venulog] Task issues from 2026-05-18 to 2026-05-24",
+      createdAt: "2026-05-18T00:00:00.000Z",
+    });
+    const path = await makeTempDb(db);
+
+    const result = await syncNetdokTasks({
+      config: {
+        ...baseConfig,
+        netdok: {
+          ...baseConfig.netdok,
+          appBaseUrl: "https://staging.netdok.co",
+        },
+        storage: { path },
+      },
+      client: makeFakeClient({
+        tasksByProject: new Map(),
+        createdTasks: [],
+        fetchTaskCalls: 0,
+        createWorklogCalls: 0,
+        fetchWorklogCalls: 0,
+      }),
+    });
+
+    expect(result.weeks[0]?.taskUrl).toBe(
+      "https://staging.netdok.co/app/projects/active-sprint?id=proj-v&taskId=existing-task",
+    );
   });
 
   test("collects unmapped projects in preview without throwing", async () => {

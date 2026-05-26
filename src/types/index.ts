@@ -92,6 +92,7 @@ export interface LogWorksConfig {
   netdok?: {
     baseUrl?: string;
     authBaseUrl?: string;
+    appBaseUrl?: string;
     apiKey?: string; // sent as `x-api-key` header
     workspaceId?: string;
     profileId?: string;
@@ -215,6 +216,7 @@ export interface NetdokPinnedTaskEntry {
   projectId: string;
   pinnedTaskId: string;
   entries: number;
+  taskUrl?: string;
 }
 
 export interface NetdokTaskSyncEntry {
@@ -226,6 +228,7 @@ export interface NetdokTaskSyncEntry {
   status: NetdokTaskSyncStatus;
   taskId?: string;
   taskKey?: string;
+  taskUrl?: string;
 }
 
 export interface NetdokTaskSyncResult {
@@ -255,6 +258,8 @@ export interface NetdokWorklogSyncEntry {
   text: string;
   hours: number | null;
   taskId?: string;
+  projectId?: string;
+  taskUrl?: string;
   status: NetdokWorklogSyncStatus;
   worklogId?: string;
   reason?: string;
@@ -394,6 +399,7 @@ export interface NetdokDiscoverResult {
 export interface NetdokApplyInput {
   baseUrl?: string;
   authBaseUrl?: string;
+  appBaseUrl?: string;
   apiKey: string;
   workspaceId: string;
   profileId: string;

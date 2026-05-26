@@ -71,6 +71,7 @@ export function applyEnvOverrides(
     ["slack.userId", env.LOG_WORKS_SLACK_USER_ID],
     ["slack.channels", env.LOG_WORKS_SLACK_CHANNELS],
     ["netdok.baseUrl", env.LOG_WORKS_NETDOK_BASE_URL],
+    ["netdok.appBaseUrl", env.LOG_WORKS_NETDOK_APP_BASE_URL],
     ["netdok.authHeader", env.LOG_WORKS_NETDOK_AUTH_HEADER],
     ["netdok.apiKey", env.LOG_WORKS_NETDOK_API_KEY],
     ["netdok.workspaceId", env.LOG_WORKS_NETDOK_WORKSPACE_ID],

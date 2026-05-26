@@ -87,7 +87,8 @@ Read-only. Aggregates the local DB. `rawMessages` is filtered with the same effe
       "expectedTaskName": "[Venulog] Task issues from 2026-05-18 to 2026-05-24",
       "status": "existing-local|existing-remote|would-create|created",
       "taskId": "cmpkkh…",
-      "taskKey": "TP-7"
+      "taskKey": "TP-7",
+      "taskUrl": "https://app.netdok.co/app/projects/active-sprint?id=acn%E2%80%A6&taskId=cmpkkh%E2%80%A6"
     }
   ],
   "unmapped": [{ "project": "Dealer tool", "entries": 1 }],
@@ -96,13 +97,16 @@ Read-only. Aggregates the local DB. `rawMessages` is filtered with the same effe
       "project": "Loopengers",
       "projectId": "proj-l",
       "pinnedTaskId": "pinned-task-1",
-      "entries": 3
+      "entries": 3,
+      "taskUrl": "https://app.netdok.co/app/projects/active-sprint?id=proj-l&taskId=pinned-task-1"
     }
   ],
   "applied": false,
   "storagePath": "~/.log-works/db.json"
 }
 ```
+
+`taskUrl` is built server-side from `netdok.appBaseUrl` (default `https://app.netdok.co`) and the row's `projectId` + `taskId`. Omitted on `would-create` rows (no taskId yet).
 
 Projects with `netdok.projects.<name>.pinnedTaskId` set never appear in `weeks` and skip wrapper creation. They are surfaced in `pinned` so the caller can confirm the mode is active. The `status` enum on each `weeks` entry adds `"pinned"` for forward compatibility (currently only used in the `pinned` array's parallel reporting).
 
@@ -118,6 +122,8 @@ Projects with `netdok.projects.<name>.pinnedTaskId` set never appear in `weeks` 
       "text": "Checked …",
       "hours": 0.5,
       "taskId": "cmpkkh…",
+      "projectId": "proj-v",
+      "taskUrl": "https://app.netdok.co/app/projects/active-sprint?id=proj-v&taskId=cmpkkh%E2%80%A6",
       "status": "would-post|posted|skipped-already-sent|skipped-no-task|skipped-no-hours|skipped-no-project|skipped-duplicate-remote|failed",
       "worklogId": "f6vm…",
       "reason": "matching worklog already exists in Netdok"
@@ -127,6 +133,8 @@ Projects with `netdok.projects.<name>.pinnedTaskId` set never appear in `weeks` 
   "storagePath": "~/.log-works/db.json"
 }
 ```
+
+`projectId` is present whenever `netdok.projects[entry.project]` is mapped (so missing only on `skipped-no-project`). `taskUrl` is built server-side from `netdok.appBaseUrl` (default `https://app.netdok.co`), `projectId`, and `taskId`. Omitted when either is missing (e.g. `skipped-no-task`, `skipped-no-project`).
 
 ### Post-success `netdokHint` (on `fetch` and `derive`)
 

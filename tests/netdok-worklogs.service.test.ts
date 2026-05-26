@@ -512,4 +512,58 @@ describe("syncNetdokWorklogs", () => {
     expect(result.entries[0]?.status).toBe("skipped-duplicate-remote");
     expect(state.createdWorklogs).toHaveLength(0);
   });
+
+  test("populates projectId + taskUrl on mapped entries, omits on skipped-no-project", async () => {
+    const path = await makeTempDb(
+      dbWithWrapper([
+        entry({ id: "e1#0", project: "Venulog" }),
+        entry({ id: "e2#0", project: "Dealer tool" }),
+      ]),
+    );
+    const result = await syncNetdokWorklogs({
+      config: { ...baseConfig, storage: { path } },
+      client: makeFakeClient({
+        createdWorklogs: [],
+        remoteByTask: new Map(),
+        fetchWorklogCalls: 0,
+        createTaskCalls: 0,
+        fetchTaskCalls: 0,
+      }),
+    });
+    const mapped = result.entries.find((e) => e.project === "Venulog");
+    const unmapped = result.entries.find((e) => e.project === "Dealer tool");
+    expect(mapped?.projectId).toBe("proj-v");
+    expect(mapped?.taskUrl).toBe(
+      "https://app.netdok.co/app/projects/active-sprint?id=proj-v&taskId=task-week-1",
+    );
+    expect(unmapped?.projectId).toBeUndefined();
+    expect(unmapped?.taskUrl).toBeUndefined();
+  });
+
+  test("skipped-already-sent still carries projectId + taskUrl", async () => {
+    const path = await makeTempDb(
+      dbWithWrapper([
+        entry({
+          id: "e1#0",
+          status: "sent",
+          postedTaskId: "task-week-1",
+          postedWorklogId: "old-worklog",
+        }),
+      ]),
+    );
+    const result = await syncNetdokWorklogs({
+      config: { ...baseConfig, storage: { path } },
+      client: makeFakeClient({
+        createdWorklogs: [],
+        remoteByTask: new Map(),
+        fetchWorklogCalls: 0,
+        createTaskCalls: 0,
+        fetchTaskCalls: 0,
+      }),
+    });
+    expect(result.entries[0]?.projectId).toBe("proj-v");
+    expect(result.entries[0]?.taskUrl).toBe(
+      "https://app.netdok.co/app/projects/active-sprint?id=proj-v&taskId=task-week-1",
+    );
+  });
 });
