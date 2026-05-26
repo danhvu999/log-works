@@ -8,6 +8,7 @@ import {
   setConfigValue,
 } from "./config/config.manager.ts";
 import { errorResponse } from "./output.ts";
+import { deriveWorkLogs } from "./services/derive.service.ts";
 import { exportWorkLogs } from "./services/export.service.ts";
 import { fetchWorkLogs } from "./services/fetch.service.ts";
 import { fetchNetdokRemoteTasks } from "./services/netdok-fetch-tasks.service.ts";
@@ -24,10 +25,6 @@ import {
   setupNetdokDiscover,
   setupSlackConfig,
 } from "./services/setup.service.ts";
-import {
-  ingestSmartEntries,
-  listUnparsedMessages,
-} from "./services/smart-parse.service.ts";
 import {
   clearNetdokStorage,
   resetStorage,
@@ -79,14 +76,14 @@ SETUP PROTOCOL. Always call \`log_works_config_check\` first in a fresh session 
 
 \`nextStep\` actions:
 - \`"setup-slack"\`: prompt only for Slack credentials (userToken, userId, channels) → \`log_works_config_setup_slack\`. Stop.
-- \`"fetch-and-derive"\`: Slack ready; Netdok deferred. Run \`log_works_fetch\` (with \`from: "lastmonth"\` on first-run) → the smart-parse loop. There is no MCP \`derive\` tool — the rule parser stays CLI-only.
+- \`"fetch-and-derive"\`: Slack ready; Netdok deferred. Run \`log_works_fetch\` (with \`from: "lastmonth"\` on first-run) then \`log_works_derive\` over the same range to materialize structured work-logs.
 - \`"setup-netdok-discover"\`: a status hint — Netdok is unconfigured but the local DB has data. Trigger this flow ONLY when the user explicitly asks to sync to Netdok. When asked: request the Netdok API key → \`log_works_config_setup_netdok_discover\` (apiKey only) → present workspaces → re-call with \`workspaceId\`. Before \`apply\`, ask if any project should run in pinned-task mode (one fixed task, e.g. retainer / on-call). If yes, resolve the \`pinnedTaskId\` for that project one of two ways: (a) the user already knows the taskId and provides it directly, or (b) call \`log_works_netdok_fetch_tasks\` with the project's \`projectId\` (and optional \`sprintId\`) to list candidate tasks, present them by \`key\` + \`name\`, and let the user pick — then pass the chosen \`id\` as \`pinnedTaskId\` in the apply payload. Do NOT invent a taskId or guess from the name. (Re-calling discover with \`includeTasks: true\` is also valid for batch lookup, but \`log_works_netdok_fetch_tasks\` is preferred for per-project pinning.)
 - \`"setup-netdok-apply"\`: a status hint — Netdok base keys are set but no project mappings yet. Trigger this ONLY when the user is following through on a sync request. Assemble \`projects\` mappings from the readiness result's \`knownLocalProjects\` and call \`log_works_config_setup_netdok_apply\`. Each project picks one mode: weekly-wrapper (\`sprintId\` + \`statusId\`) OR pinned-task (\`pinnedTaskId\`). Modes can be mixed.
 - \`"ready"\`: everything configured. Call \`log_works_netdok_tasks\` / \`log_works_netdok_worklogs\` per the user's request.
 
 NEW-USER HAPPY PATH (PHASE A — local logging). After \`log_works_config_setup_slack\`, run in order:
 1. \`log_works_fetch\` with \`from: "lastmonth"\` (bounds the first-run fetch)
-2. \`log_works_unparsed\` → for each returned message, propose structured entries (project, text, hours per bullet) to the user and call \`log_works_ingest_entries\` (\`source: "smart"\`). If a bullet's project name is not in \`known\`, ask the user to confirm it and call \`log_works_projects_add\` to persist incrementally — the vocabulary builds up from real debrief content; do NOT ask the user to enumerate projects upfront.
+2. \`log_works_derive\` over the same range — the rule parser materializes \`workLogs\` from \`rawMessages\` (source='rule'). Inspect any unmapped project names surfaced via \`netdokHint\`: confirm new names with the user and persist via \`log_works_projects_add\` (UPSERT). Do NOT ask the user to enumerate projects upfront.
 3. Stop. Tell the user "Logged. Want me to sync to Netdok?" and wait for an explicit answer. Do NOT run Phase B unless the user asks to sync.
 
 NEW-USER HAPPY PATH (PHASE B — Netdok sync, only on explicit user request).
@@ -101,13 +98,13 @@ POST-SYNC SUMMARY. After an \`apply: true\` response, write a short summary grou
 
 DEBRIEF FILTER. \`log_works_fetch\` only stores messages whose text contains the case-insensitive substring \`debrief\`; non-matches are counted in \`droppedNonDebrief\` and discarded. Pass \`includeNonDebrief: true\` only when the user explicitly asks to fetch everything. Also inspect the optional \`netdokHint\` on the result: when present, it lists projects missing from \`netdok.projects\` (or flags Netdok as unconfigured) — prompt the user to run Netdok setup, still without bundling Slack prompts.
 
-PROJECT VOCABULARY. The vocabulary at \`config.projects.known\` builds up incrementally during the smart-parse loop. When proposing entries for a \`log_works_unparsed\` message, prefer names already in \`known\`. If a bullet clearly mentions a project not in \`known\`, ask the user to confirm the new name, then call \`log_works_projects_add\` (UPSERT — keeps existing entries) to persist it. Do NOT call \`log_works_projects_set\` for incremental additions; it REPLACES the whole list and would clobber other entries. Use \`log_works_projects_list\` to review the current vocabulary (e.g. before Netdok mapping, or when the user asks "what projects do I have"). Use \`log_works_projects_set\` only for explicit cleanup or full replacement.
+PROJECT VOCABULARY. The vocabulary at \`config.projects.known\` should mirror the project names the rule parser emits during \`log_works_derive\`. When a derive run surfaces a project not yet in \`known\`, confirm the name with the user and call \`log_works_projects_add\` (UPSERT — keeps existing entries). Do NOT call \`log_works_projects_set\` for incremental additions; it REPLACES the whole list and would clobber other entries. Use \`log_works_projects_list\` to review the current vocabulary (e.g. before Netdok mapping, or when the user asks "what projects do I have"). Use \`log_works_projects_set\` only for explicit cleanup or full replacement.
 
-SMART-PARSE LOOP. ALWAYS call log_works_unparsed after \`log_works_fetch\` succeeds — it is the canonical parsing step in MCP (the rule parser stays CLI-only because debrief formats vary too widely). If the \`messages\` array is non-empty, propose structured entries (project, text, hours per bullet) to the user, confirm, then call \`log_works_ingest_entries\`. If empty, say "no debrief messages to parse" and move on. Skip only if the user opts out.
+DERIVE STEP. ALWAYS call \`log_works_derive\` after \`log_works_fetch\` succeeds — it is the canonical parsing step. The rule parser handles the supported debrief formats (\`Debrief:\` section, \`Project\` / \`Project:\` / \`[Project]\` headers, \`•\`/\`◦\` bullets, inline \`[Nh]\` or \`[N]\` hours markers). \`log_works_derive\` is idempotent on \`\${ts}#\${index}\`, so re-running after a re-fetch only inserts the delta.
 
-ENTRY TEXT FORMAT. When proposing or ingesting a smart-parsed entry, the \`text\` field is the work-log body that ends up on Netdok. If a single bullet contains multiple thoughts or sub-items, separate them with newline characters (\`\\n\`), NOT semicolons or commas — \`log_works_netdok_worklogs\` renders each newline as a separate paragraph in the posted worklog. Example: \`"Fixed invoice line bug\\nReviewed PR #214\\nMet with QA"\` — not \`"Fixed invoice line bug; Reviewed PR #214; Met with QA"\`. One bullet = one entry; do NOT collapse multiple debrief bullets (different project/hours) into a single multi-line text — those must be split into separate entries.
+ENTRY TEXT FORMAT. The \`text\` field on a derived work-log is the body that ends up on Netdok. The rule parser folds Slack sub-bullets (\`◦\`) into the parent bullet's text as newline-joined lines — \`log_works_netdok_worklogs\` renders each newline as a separate paragraph in the posted worklog. Example: \`"Fixed invoice line bug\\nReviewed PR #214\\nMet with QA"\` — not \`"Fixed invoice line bug; Reviewed PR #214; Met with QA"\`. One bullet = one entry; do NOT collapse multiple debrief bullets (different project/hours) into a single multi-line text — those must be split into separate entries.
 
-LOCAL DB INSPECTION. For aggregate questions ("what did I log last week?", "how many hours on Venulog this month?"), call \`log_works_summary\` — it returns per-project totals + grand totals over \`workLogs\`. For raw messages, call \`log_works_unparsed\`. Do NOT shell out to read \`~/.log-works/db.json\` (no python / jq / cat). log_works_summary is NOT part of setup — the project vocabulary comes from \`log_works_projects_list\` / \`_set\` / \`_add\`, not from inspecting debrief texts.`;
+LOCAL DB INSPECTION. For aggregate questions ("what did I log last week?", "how many hours on Venulog this month?"), call \`log_works_summary\` — it returns per-project totals + grand totals over \`workLogs\`. Do NOT shell out to read \`~/.log-works/db.json\` (no python / jq / cat). log_works_summary is NOT part of setup — the project vocabulary comes from \`log_works_projects_list\` / \`_set\` / \`_add\`, not from inspecting debrief texts.`;
 
 export function createServer(): McpServer {
   const server = new McpServer(
@@ -328,68 +325,17 @@ export function createServer(): McpServer {
   );
 
   server.registerTool(
-    "log_works_unparsed",
+    "log_works_derive",
     {
-      title: "List unparsed messages",
+      title: "Derive work-logs from raw Slack messages",
       description:
-        "Raw Slack messages the rule parser produced 0 entries from, or flagged as partial (missing project/hours). Smart-parse loop step 1.",
+        "Run the rule parser over `rawMessages` in range and insert structured entries into `workLogs` (source='rule'). Idempotent on `${ts}#${index}`. Returns `{ processed, inserted, skipped }` plus optional `netdokHint`.",
       inputSchema: z.object({
         from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
         to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),
-        includePartial: z
-          .boolean()
-          .optional()
-          .describe(
-            "Include partially-parsed messages (default true). Set false to list only zero-entry messages.",
-          ),
       }).shape,
     },
-    async (input) => run(() => listUnparsedMessages(input)),
-  );
-
-  server.registerTool(
-    "log_works_ingest_entries",
-    {
-      title: "Ingest smart-parsed entries",
-      description:
-        "Insert externally-parsed work-log entries (source='smart') into local storage. Idempotent on ${sourceTs}#smart-${index}. Smart-parse loop step 2.",
-      inputSchema: z.object({
-        entries: z
-          .array(
-            z.object({
-              sourceTs: z
-                .string()
-                .describe("Slack message ts the entry was derived from"),
-              index: z
-                .number()
-                .int()
-                .nonnegative()
-                .optional()
-                .describe(
-                  "Stable index within sourceTs; auto-assigned if omitted",
-                ),
-              date: z
-                .string()
-                .regex(/^\d{4}-\d{2}-\d{2}$/)
-                .optional()
-                .describe("YYYY-MM-DD; defaults to message's effective date"),
-              project: z
-                .string()
-                .min(1)
-                .describe("Project name matching netdok.projects key"),
-              text: z.string().min(1).describe("Work-log body"),
-              hours: z
-                .number()
-                .positive()
-                .nullable()
-                .optional()
-                .describe("Hours spent (positive), or null"),
-            }),
-          )
-          .min(1),
-      }).shape,
-    },
-    async (input) => run(() => ingestSmartEntries(input)),
+    async (input) => run(() => deriveWorkLogs(input)),
   );
 
   server.registerTool(

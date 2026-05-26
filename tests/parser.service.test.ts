@@ -96,6 +96,27 @@ describe("parser — helpers", () => {
     expect(extractHours("Task")).toEqual({ text: "Task", hours: null });
   });
 
+  test("extractHours accepts [N] without trailing h suffix", () => {
+    expect(extractHours("Task [1.5]")).toEqual({ text: "Task", hours: 1.5 });
+    expect(extractHours("Task [3]")).toEqual({ text: "Task", hours: 3 });
+  });
+
+  test("extractHours accepts leading [Nh] anchored at start", () => {
+    expect(extractHours("[2h] #7256 Shipped")).toEqual({
+      text: "#7256 Shipped",
+      hours: 2,
+    });
+  });
+
+  test("extractHours skips non-numeric brackets and takes the first numeric one", () => {
+    expect(
+      extractHours("Fixed Bug [Generate Quote] regression [1.5h]"),
+    ).toEqual({
+      text: "Fixed Bug [Generate Quote] regression",
+      hours: 1.5,
+    });
+  });
+
   test("cleanSlackLinks handles labeled + bare links", () => {
     expect(cleanSlackLinks("see <https://a|alpha> and <https://b>")).toBe(
       "see alpha and https://b",

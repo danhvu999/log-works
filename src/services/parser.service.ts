@@ -7,7 +7,7 @@ import type {
 
 const BULLET = /^\s*•\s+(.+)$/;
 const SUBBULLET = /^\s*◦\s+(.+)$/;
-const HOURS = /\[(\d+(?:\.\d+)?)\s*h\]/;
+const HOURS = /\[(\d+(?:\.\d+)?)\s*h?\]/i;
 const SECTION = /^(Brief|Debrief)\b\s*:?\s*(.*)$/;
 const LINK_LABELED = /<([^>|]+)\|([^>]+)>/g;
 const LINK_BARE = /<([^>]+)>/g;

@@ -29,9 +29,9 @@ describe("MCP wrapper", () => {
         "log_works_config_setup_netdok_discover",
         "log_works_config_setup_slack",
         "log_works_config_show",
+        "log_works_derive",
         "log_works_export",
         "log_works_fetch",
-        "log_works_ingest_entries",
         "log_works_netdok_fetch_tasks",
         "log_works_netdok_tasks",
         "log_works_netdok_worklogs",
@@ -41,7 +41,6 @@ describe("MCP wrapper", () => {
         "log_works_storage_clear_netdok",
         "log_works_storage_reset",
         "log_works_summary",
-        "log_works_unparsed",
       ].sort(),
     );
 
@@ -78,12 +77,12 @@ describe("MCP wrapper", () => {
     expect(instructions).toMatch(/Never bundle|never bundle/);
     expect(instructions).toMatch(/preview/i);
     expect(instructions).toContain("taskUrl");
-    expect(instructions).toContain("log_works_unparsed");
+    expect(instructions).toContain("log_works_derive");
     expect(instructions).toContain("PROJECT VOCABULARY");
     expect(instructions).toContain("log_works_projects_list");
     expect(instructions).toContain("DEBRIEF FILTER");
     expect(instructions).toContain("includeNonDebrief");
-    expect(instructions).toMatch(/ALWAYS call log_works_unparsed/);
+    expect(instructions).toMatch(/ALWAYS call `log_works_derive`/);
     expect(instructions).toContain("lastmonth");
     expect(instructions).toContain("log_works_summary");
     expect(instructions).toContain("log_works_projects_add");
