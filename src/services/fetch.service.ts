@@ -1,9 +1,10 @@
 import { loadConfig, resolveStoragePath } from "../config/config.manager.ts";
 import { AppError } from "../errors.ts";
 import type { FetchSummary, LogWorksConfig } from "../types/index.ts";
+import { isDebriefText } from "./debrief-filter.ts";
 import { computeNetdokHint } from "./netdok-hint.service.ts";
 import { evaluateMessage } from "./parser.service.ts";
-import { fetchSlackMessages } from "./slack.service.ts";
+import { type SlackGateway, fetchSlackMessages } from "./slack.service.ts";
 import {
   readDatabase,
   upsertRawMessages,
@@ -16,6 +17,8 @@ export interface FetchWorkLogsInput {
   channel?: string;
   config?: LogWorksConfig;
   now?: Date;
+  includeNonDebrief?: boolean;
+  gateway?: SlackGateway;
 }
 
 export async function fetchWorkLogs(
@@ -38,15 +41,23 @@ export async function fetchWorkLogs(
   }
 
   const storagePath = resolveStoragePath(config);
-  const messages = await fetchSlackMessages({
-    channel: input.channel,
-    channels,
-    from: input.from,
-    now: input.now,
-    to: input.to,
-    userId: slack.userId,
-    userToken: slack.userToken,
-  });
+  const rawMessages = await fetchSlackMessages(
+    {
+      channel: input.channel,
+      channels,
+      from: input.from,
+      now: input.now,
+      to: input.to,
+      userId: slack.userId,
+      userToken: slack.userToken,
+    },
+    input.gateway,
+  );
+  const includeNonDebrief = input.includeNonDebrief ?? false;
+  const messages = includeNonDebrief
+    ? rawMessages
+    : rawMessages.filter((message) => isDebriefText(message.text));
+  const droppedNonDebrief = rawMessages.length - messages.length;
   const database = await readDatabase(storagePath);
   const result = upsertRawMessages(database, messages);
 
@@ -72,6 +83,7 @@ export async function fetchWorkLogs(
     fetched: messages.length,
     inserted: result.inserted,
     skipped: result.skipped,
+    droppedNonDebrief,
     channels,
     from: input.from,
     to: input.to,

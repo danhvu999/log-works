@@ -141,6 +141,7 @@ export interface FetchSummary {
   fetched: number;
   inserted: number;
   skipped: number;
+  droppedNonDebrief: number;
   channels: string[];
   from?: string;
   to?: string;

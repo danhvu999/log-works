@@ -15,6 +15,7 @@ Personal CLI tool that syncs work-log messages from Slack into a local store, th
 - Filter to messages authored by the configured user only.
 - Support date range via `--from` / `--to`. Default range = since last successful fetch.
 - Idempotent: re-running the same range must not duplicate stored messages. Key = Slack message `ts`.
+- Default debrief filter: only messages whose text contains the case-insensitive substring `debrief` are stored. Non-matching messages are counted in `FetchSummary.droppedNonDebrief` and discarded. `--include-non-debrief` (CLI) / `includeNonDebrief: true` (MCP) opts out for full-coverage debugging.
 - Persist the raw message payload locally **before** any transformation, so reprocessing never requires re-hitting Slack.
 - Respect Slack rate limits (back off + resume).
 
@@ -169,7 +170,7 @@ The rule parser is intentionally permissive but cannot handle freeform debriefs 
 ```
 log-works config set <key> <value>
 log-works config show
-log-works fetch  [--from <date>] [--to <date>] [--channel <id>]
+log-works fetch  [--from <date>] [--to <date>] [--channel <id>] [--include-non-debrief]
 log-works derive [--from <date>] [--to <date>]
 log-works parse list-unparsed [--from <date>] [--to <date>] [--no-partial]
 log-works parse ingest [--file <path>]

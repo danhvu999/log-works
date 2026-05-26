@@ -103,6 +103,7 @@ export const COMMAND_SPECS: CommandSpec[] = [
       { name: "--from", takesValue: true },
       { name: "--to", takesValue: true },
       { name: "--channel", takesValue: true },
+      { name: "--include-non-debrief", takesValue: false },
     ],
   },
   {
@@ -329,9 +330,18 @@ export function createProgram(): Command {
     )
     .option("--to <date>", "End date, ISO datetime, or now")
     .option("--channel <id>", "Override configured Slack channels")
+    .option(
+      "--include-non-debrief",
+      "Also store Slack messages that don't mention 'debrief' (default: filtered out)",
+    )
     .option("--json", "Print machine-readable JSON")
     .action(async (options: FetchOptions) => {
-      const result = await fetchWorkLogs(options);
+      const result = await fetchWorkLogs({
+        from: options.from,
+        to: options.to,
+        channel: options.channel,
+        includeNonDebrief: options.includeNonDebrief,
+      });
       emit(result, Boolean(options.json), formatFetchSummary);
     });
 
@@ -491,6 +501,7 @@ interface FetchOptions {
   from?: string;
   to?: string;
   channel?: string;
+  includeNonDebrief?: boolean;
   json?: boolean;
 }
 
@@ -626,8 +637,13 @@ function formatFetchSummary(summary: FetchSummary): string {
   const lines = [
     `Fetched ${summary.fetched} Slack messages.`,
     `Inserted ${summary.inserted}; skipped ${summary.skipped}.`,
-    `Storage: ${summary.storagePath}`,
   ];
+  if (summary.droppedNonDebrief > 0) {
+    lines.push(
+      `Dropped ${summary.droppedNonDebrief} non-debrief message(s); pass --include-non-debrief to keep them.`,
+    );
+  }
+  lines.push(`Storage: ${summary.storagePath}`);
   appendNetdokHintLines(lines, summary.netdokHint);
   lines.push("");
   return lines.join("\n");

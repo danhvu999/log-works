@@ -7,7 +7,7 @@ This file pins the public CLI surface. Breaking changes require a version bump a
 ```text
 log-works config set <key> <value>
 log-works config show
-log-works fetch [--from <date>] [--to <date>] [--channel <id>]
+log-works fetch [--from <date>] [--to <date>] [--channel <id>] [--include-non-debrief]
 log-works derive [--from <date>] [--to <date>]
 log-works config setup slack --user-token <t> --user-id <u> [--channels <a,b,c>]
 log-works config setup netdok-discover --api-key <k> [--workspace-id <w>] [--base-url <u>] [--auth-base-url <u>] [--project-ids <a,b,c>]
@@ -37,6 +37,26 @@ Every command above is also exposed by the MCP server (`src/mcp.ts`) as a tool n
 - `log_works_export` requires `outPath` (no stdout pipe in MCP).
 
 Tool outputs are the same JSON shapes documented below; errors use `{ isError: true, content: [{ type: "text", text: <errorResponse JSON> }] }` with the same `code`/`message` strings.
+
+### `fetch` JSON
+
+```json
+{
+  "fetched": 7,
+  "inserted": 7,
+  "skipped": 0,
+  "droppedNonDebrief": 12,
+  "channels": ["C08SZ28DSJE"],
+  "from": "2026-05-18",
+  "to": "2026-05-24",
+  "storagePath": "~/.log-works/db.json"
+}
+```
+
+- `fetched` — count of messages stored (after the debrief filter).
+- `inserted` / `skipped` — `upsertRawMessages` outcome, deduped on Slack `ts`.
+- `droppedNonDebrief` — messages Slack returned that did not contain the case-insensitive substring `debrief`. Filter runs by default; pass `--include-non-debrief` (CLI) / `includeNonDebrief: true` (MCP) to disable it and store everything.
+- `netdokHint` — optional, see the section below.
 
 ### `summary` JSON
 

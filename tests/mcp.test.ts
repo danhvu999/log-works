@@ -77,5 +77,7 @@ describe("MCP wrapper", () => {
     expect(instructions).toContain("taskUrl");
     expect(instructions).toContain("smartParseHint");
     expect(instructions).toContain("log_works_unparsed");
+    expect(instructions).toContain("DEBRIEF FILTER");
+    expect(instructions).toContain("includeNonDebrief");
   });
 });

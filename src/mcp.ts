@@ -98,6 +98,8 @@ MUTATING NETDOK CALLS (preview → approve → apply). \`log_works_netdok_tasks\
 
 POST-SYNC SUMMARY. After a successful \`apply: true\` response, write a short summary for the user grouped by project. Each project's section must list: the wrapper or pinned task name, total hours posted, and the \`taskUrl\` from the response rendered as a clickable link. Do not reconstruct URLs by hand — always use the \`taskUrl\` field the server returns. For \`log_works_netdok_tasks\` apply responses, surface \`taskUrl\` from \`weeks[*].taskUrl\` / \`pinned[*].taskUrl\`. For \`log_works_netdok_worklogs\` apply responses, surface \`taskUrl\` (and \`projectId\`) from each posted entry; group entries by \`taskUrl\` so each Netdok task appears once with its total hours.
 
+DEBRIEF FILTER. log_works_fetch only stores Slack messages whose text contains the case-insensitive substring \`debrief\` (so chatter and Brief-only notes never reach the local DB). The result's \`droppedNonDebrief\` field reports how many were filtered. Only pass \`includeNonDebrief: true\` when the user explicitly asks to "fetch everything" / "include all messages" / debug why a message is missing — otherwise leave it off so derive and the smart-parse loop stay focused on real debriefs.
+
 After log_works_fetch or log_works_derive succeeds, inspect the optional \`netdokHint\` field on the result. When present, it means either Netdok is not yet configured (\`configured: false\`) or some projects in the just-processed range are missing from \`netdok.projects\` (\`unmappedProjects\`). Prompt the user to run the Netdok setup flow for those projects — still without bundling Slack prompts.
 
 SMART-PARSE LOOP. After log_works_derive succeeds, inspect the optional \`smartParseHint\` field. When present, it means the rule parser could not fully handle \`totalNeedingReview\` raw messages (\`emptyCount\` produced zero entries, \`partialCount\` were missing project or hours). Run the loop: call log_works_unparsed to fetch the raw text of the failing messages, show them to the user, propose structured entries (project, text, hours per bullet), confirm with the user, then call log_works_ingest_entries to write them back as \`source: "smart"\`. Skip the loop only if the user explicitly opts out. The hint is omitted when every raw message in the range parsed cleanly.
@@ -149,7 +151,7 @@ export function createServer(): McpServer {
     {
       title: "Fetch Slack debriefs",
       description:
-        "Pull Slack messages from configured channels into local storage. Idempotent on Slack `ts`. The result may include an optional `netdokHint` field listing projects in the just-fetched range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup.",
+        "Pull Slack messages from configured channels into local storage. Idempotent on Slack `ts`. By default, only messages containing the case-insensitive substring `debrief` are stored — everything else (chatter, Brief-only notes, link drops) is counted in `droppedNonDebrief` and discarded. Pass `includeNonDebrief: true` to keep every authored message. The result may include an optional `netdokHint` field listing projects in the just-fetched range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup.",
       inputSchema: z.object({
         from: z
           .string()
@@ -166,6 +168,12 @@ export function createServer(): McpServer {
           .optional()
           .describe(
             "Override configured Slack channels with a single channel id",
+          ),
+        includeNonDebrief: z
+          .boolean()
+          .optional()
+          .describe(
+            "When true, skip the default `debrief` substring filter and store every message the configured user authored. Use only when the user explicitly asks to fetch everything (e.g. debugging channel coverage).",
           ),
       }).shape,
     },

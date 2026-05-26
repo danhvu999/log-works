@@ -35,6 +35,15 @@ describe("CLI contract", () => {
     }
   });
 
+  test("fetch exposes the --include-non-debrief escape hatch", () => {
+    const fetchSpec = COMMAND_SPECS.find((c) => c.name === "fetch");
+    const flag = fetchSpec?.options.find(
+      (opt) => opt.name === "--include-non-debrief",
+    );
+    expect(flag).toBeDefined();
+    expect(flag?.takesValue).toBe(false);
+  });
+
   test("netdok commands default to preview (require --apply for writes)", () => {
     const netdokCommands = COMMAND_SPECS.filter((c) =>
       c.name.startsWith("netdok "),
