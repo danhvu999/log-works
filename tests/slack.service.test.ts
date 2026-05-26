@@ -16,6 +16,17 @@ describe("Slack service", () => {
     });
   });
 
+  test("resolves lastmonth (and last-month alias) to thirty days before now", () => {
+    const now = new Date("2026-05-24T12:00:00.000Z");
+
+    const range = resolveSlackDateRange("lastmonth", "now", now);
+    expect(range.from).toBe("2026-04-24T12:00:00.000Z");
+    expect(range.to).toBe("2026-05-24T12:00:00.000Z");
+
+    const aliasRange = resolveSlackDateRange("last-month", "now", now);
+    expect(aliasRange.from).toBe("2026-04-24T12:00:00.000Z");
+  });
+
   test("expands bare YYYY-MM-DD to local start- and end-of-day", () => {
     const now = new Date("2026-05-25T12:00:00.000Z");
     const range = resolveSlackDateRange("2026-05-25", "2026-05-25", now);

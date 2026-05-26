@@ -79,5 +79,7 @@ describe("MCP wrapper", () => {
     expect(instructions).toContain("log_works_unparsed");
     expect(instructions).toContain("DEBRIEF FILTER");
     expect(instructions).toContain("includeNonDebrief");
+    expect(instructions).toMatch(/ALWAYS call log_works_unparsed/);
+    expect(instructions).toContain("lastmonth");
   });
 });

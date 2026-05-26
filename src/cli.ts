@@ -326,7 +326,7 @@ export function createProgram(): Command {
     .command("fetch")
     .option(
       "--from <date>",
-      "Start date, ISO datetime, now, lastweek, or last-week",
+      "Start date, ISO datetime, now, lastweek, last-week, lastmonth, or last-month",
     )
     .option("--to <date>", "End date, ISO datetime, or now")
     .option("--channel <id>", "Override configured Slack channels")

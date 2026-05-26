@@ -203,6 +203,10 @@ function parseDateShortcut(
     return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   }
 
+  if (value === "lastmonth" || value === "last-month") {
+    return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  }
+
   if (DATE_ONLY_PATTERN.test(value)) {
     const [year, month, day] = value.split("-").map(Number) as [
       number,

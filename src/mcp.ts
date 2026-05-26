@@ -88,7 +88,7 @@ When you do use the server, follow the two-stage setup protocol. Before invoking
 
 Never bundle Slack and Netdok setup in one user-facing prompt. Slack always comes first.
 
-NEW-USER HAPPY PATH. For a brand-new user (nextStep walks "setup-slack" → "fetch-and-derive" → "setup-netdok-discover"), always run: log_works_config_setup_slack → log_works_fetch → log_works_derive → log_works_config_setup_netdok_discover → log_works_config_setup_netdok_apply → preview log_works_netdok_tasks → confirm + apply → preview log_works_netdok_worklogs → confirm + apply. Fetch MUST precede Netdok discovery so log_works_config_check.netdok.knownLocalProjects reflects real project names from the user's debriefs; otherwise the agent can only pick from the static seed list and the user has to type project names manually.
+NEW-USER HAPPY PATH. For a brand-new user (nextStep walks "setup-slack" → "fetch-and-derive" → "setup-netdok-discover"), always run: log_works_config_setup_slack → log_works_fetch with \`from: "lastmonth"\` (bounded to the last 30 days during setup so the first-run fetch stays small) → log_works_derive → log_works_unparsed (and log_works_ingest_entries if any failing messages need review) → log_works_config_setup_netdok_discover → log_works_config_setup_netdok_apply → preview log_works_netdok_tasks → confirm + apply → preview log_works_netdok_worklogs → confirm + apply. Fetch MUST precede Netdok discovery so log_works_config_check.netdok.knownLocalProjects reflects real project names from the user's debriefs; otherwise the agent can only pick from the static seed list and the user has to type project names manually.
 
 MUTATING NETDOK CALLS (preview → approve → apply). \`log_works_netdok_tasks\` and \`log_works_netdok_worklogs\` are the only mutating Netdok tools. Both must be called twice:
 1. First call without \`apply\` (or \`apply: false\`). This is a preview — no Netdok writes.
@@ -102,7 +102,7 @@ DEBRIEF FILTER. log_works_fetch only stores Slack messages whose text contains t
 
 After log_works_fetch or log_works_derive succeeds, inspect the optional \`netdokHint\` field on the result. When present, it means either Netdok is not yet configured (\`configured: false\`) or some projects in the just-processed range are missing from \`netdok.projects\` (\`unmappedProjects\`). Prompt the user to run the Netdok setup flow for those projects — still without bundling Slack prompts.
 
-SMART-PARSE LOOP. After log_works_derive succeeds, inspect the optional \`smartParseHint\` field. When present, it means the rule parser could not fully handle \`totalNeedingReview\` raw messages (\`emptyCount\` produced zero entries, \`partialCount\` were missing project or hours). Run the loop: call log_works_unparsed to fetch the raw text of the failing messages, show them to the user, propose structured entries (project, text, hours per bullet), confirm with the user, then call log_works_ingest_entries to write them back as \`source: "smart"\`. Skip the loop only if the user explicitly opts out. The hint is omitted when every raw message in the range parsed cleanly.
+SMART-PARSE LOOP. After log_works_derive succeeds, ALWAYS call log_works_unparsed next — it is the canonical second step of derive, not a conditional follow-up. Do NOT gate this on \`smartParseHint\`. The hint is a status indicator (how many failures to expect from the rule parser); the loop runs whether or not the hint is present. If log_works_unparsed returns a non-empty \`messages\` array, propose structured entries (project, text, hours per bullet) to the user, confirm, then call log_works_ingest_entries to write them back as \`source: "smart"\`. If it returns an empty array, mention "no unparsed messages" briefly and move on. Skip the loop only if the user explicitly opts out.
 
 For setup or planning questions ("what projects are in my logs?", "how many hours did I log on X?"), call log_works_summary instead of exporting + post-processing. It returns aggregate counts and per-project hours straight from the local DB.`;
 
@@ -157,7 +157,7 @@ export function createServer(): McpServer {
           .string()
           .optional()
           .describe(
-            "Start date YYYY-MM-DD, ISO datetime, 'now', or 'lastweek'",
+            "Start date YYYY-MM-DD, ISO datetime, 'now', 'lastweek', or 'lastmonth'",
           ),
         to: z
           .string()
@@ -185,7 +185,7 @@ export function createServer(): McpServer {
     {
       title: "Derive work-logs",
       description:
-        "Parse local raw Slack messages into structured WorkLogEntry rows. Idempotent on ${ts}#${bulletIndex}. The result may include an optional `netdokHint` field listing projects in the just-derived range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup. The result may also include `smartParseHint` with `emptyCount` / `partialCount` / `totalNeedingReview` when any raw message in the range failed (status `empty`) or was only partially parsed (status `partial`) — when present, follow the smart-parse loop: call log_works_unparsed, show the messages to the user, build structured entries, then log_works_ingest_entries.",
+        "Parse local raw Slack messages into structured WorkLogEntry rows. Idempotent on ${ts}#${bulletIndex}. After this tool succeeds, the agent MUST call log_works_unparsed next as the canonical second step — regardless of whether smartParseHint is present. The hint reports how many failures to expect; it is not the trigger. The result may include an optional `netdokHint` field listing projects in the just-derived range that are missing from `netdok.projects` (and whether Netdok base keys are configured) so the agent can prompt the user to run Netdok setup. The result may also include `smartParseHint` with `emptyCount` / `partialCount` / `totalNeedingReview` summarising how many raw messages need smart-parse review.",
       inputSchema: z.object({
         from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
         to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),

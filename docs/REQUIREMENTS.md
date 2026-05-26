@@ -13,7 +13,7 @@ Personal CLI tool that syncs work-log messages from Slack into a local store, th
 - Authenticate as the user via a **user OAuth token** (`xoxp-…`). No bot installed in the workspace.
 - Pull messages from one or more configured channels and/or DMs.
 - Filter to messages authored by the configured user only.
-- Support date range via `--from` / `--to`. Default range = since last successful fetch.
+- Support date range via `--from` / `--to`. Default range = since last successful fetch. Recognised shortcuts: `YYYY-MM-DD`, ISO datetime, `now`, `lastweek` / `last-week` (7 days back), `lastmonth` / `last-month` (30 days back).
 - Idempotent: re-running the same range must not duplicate stored messages. Key = Slack message `ts`.
 - Default debrief filter: only messages whose text contains the case-insensitive substring `debrief` are stored. Non-matching messages are counted in `FetchSummary.droppedNonDebrief` and discarded. `--include-non-debrief` (CLI) / `includeNonDebrief: true` (MCP) opts out for full-coverage debugging.
 - Persist the raw message payload locally **before** any transformation, so reprocessing never requires re-hitting Slack.
