@@ -665,24 +665,14 @@ function appendNetdokHintLines(
 
 function formatSummaryResult(result: SummaryResult): string {
   const lines: string[] = [];
-  lines.push(
-    `Raw messages: ${result.totals.rawMessages}; work-logs: ${result.totals.workLogs}.`,
-  );
-  lines.push(
-    `Total hours: ${result.totals.totalHours}; unique projects: ${result.totals.uniqueProjects}.`,
-  );
-  if (result.totals.dateMin && result.totals.dateMax) {
-    lines.push(
-      `Date range: ${result.totals.dateMin} to ${result.totals.dateMax}.`,
-    );
-  }
-  if (result.projects.length > 0) {
-    lines.push("Projects:");
-    for (const stat of result.projects) {
-      lines.push(
-        `  ${stat.project}: ${stat.hours}h, ${stat.entries} entry/entries (${stat.dateMin}..${stat.dateMax})`,
-      );
-    }
+  const range =
+    result.from || result.to
+      ? ` in ${result.from ?? "*"}..${result.to ?? "*"}`
+      : "";
+  lines.push(`Found ${result.messages.length} debrief message(s)${range}:`);
+  for (const msg of result.messages) {
+    const preview = msg.text.replace(/\s+/g, " ").slice(0, 80);
+    lines.push(`  ${msg.date}  ${msg.ts}  ${msg.channel}  ${preview}`);
   }
   lines.push(`Storage: ${result.storagePath}`);
   lines.push("");

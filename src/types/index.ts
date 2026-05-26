@@ -160,26 +160,15 @@ export interface DeriveSummary {
   smartParseHint?: SmartParseHint;
 }
 
-export interface SummaryProjectStat {
-  project: string;
-  entries: number;
-  hours: number;
-  dateMin: string;
-  dateMax: string;
-}
-
-export interface SummaryTotals {
-  rawMessages: number;
-  workLogs: number;
-  totalHours: number;
-  uniqueProjects: number;
-  dateMin: string | null;
-  dateMax: string | null;
+export interface SummaryRawDebrief {
+  ts: string;
+  date: string;
+  channel: string;
+  text: string;
 }
 
 export interface SummaryResult {
-  totals: SummaryTotals;
-  projects: SummaryProjectStat[];
+  messages: SummaryRawDebrief[];
   storagePath: string;
   from?: string;
   to?: string;

@@ -17,7 +17,9 @@
     "mcp": "bun run src/bin/mcp.ts",
     "build": "rm -rf dist && bun build src/bin/mcp.ts src/bin/cli.ts --target=node --format=esm --outdir=dist && chmod +x dist/mcp.js dist/cli.js",
     "prepare": "bun run build",
-    "prepack": "bun run typecheck && bun run lint && bun run test && bun run build"
+    "prepack": "bun run typecheck && bun run lint && bun run test && bun run build",
+    "install:local": "bun pm pack && npm i -g \"./log-works-$npm_package_version.tgz\" && rm -f \"./log-works-$npm_package_version.tgz\"",
+    "uninstall:local": "npm rm -g log-works"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

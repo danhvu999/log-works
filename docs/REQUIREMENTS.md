@@ -103,14 +103,15 @@ Local storage maintenance commands, also preview by default and only mutate when
 - Date derivation: take the integer part of Slack `ts` as Unix seconds, format the UTC date as `YYYY-MM-DD`. Time-zone resolution is a separate open question (FR §7).
 - `--json` emits `{ processed, inserted, skipped, storagePath, from?, to? }`.
 
-### FR8 — Local DB summary
+### FR8 — Raw debrief feed for agent-side project inference
 
-- Standalone command `log-works summary` (MCP: `log_works_summary`). Pure local read; no Slack or Netdok calls.
-- Aggregates the stored DB into:
-  - `totals` — `rawMessages`, `workLogs`, `totalHours`, `uniqueProjects`, `dateMin`, `dateMax`.
-  - `projects[]` — per-project `entries`, `hours` (null hours count as zero), `dateMin`, `dateMax`. Sorted by `hours` desc, ties broken by `project` asc.
-- Optional `--from` / `--to` (`YYYY-MM-DD`, inclusive) scope the aggregation. `rawMessages` uses the same effective-date logic as `derive`; `workLogs` filter by `entry.date`.
-- Exists so agents can plan Netdok project mappings (during `setup-netdok-apply`) or answer "what did I log?" questions without exporting to disk and post-processing externally.
+- Standalone command `log-works summary` (MCP: `log_works_summary`). Pure local read; no Slack or Netdok calls. Does **not** depend on `log_works_derive` having run — it reads `rawMessages` directly.
+- Returns the raw text of every debrief message in range — no parsing, no aggregation. The agent (LLM) is expected to infer project names from the unstructured prose itself, because debrief formats vary and the rule parser misses non-canonical headers.
+- Response: `messages: [{ ts, date, channel, text }]`. `date` uses the same `effectiveDateForMessage` logic as `derive` / `parse list-unparsed`. `text` is verbatim — newlines, links, and mixed Brief/Debrief sections preserved.
+- Optional `--from` / `--to` (`YYYY-MM-DD`, inclusive) scope the scan.
+- Messages are filtered via `isDebriefText` (case-insensitive `/debrief/i`, same filter as `log_works_fetch`) so anything that slipped past the fetch filter is dropped server-side.
+- Messages are sorted chronologically (`date` asc, ties broken by Slack `ts`).
+- Exists so an external agent can plan Netdok project mappings (`setup-netdok-apply.projects` keys) by reading the actual debrief texts rather than trusting the rule parser's strict format.
 
 ### FR-PREVIEW — Agent-side preview → approve → apply contract
 

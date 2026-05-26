@@ -1,9 +1,10 @@
 import { loadConfig, resolveStoragePath } from "../config/config.manager.ts";
 import type {
   LogWorksConfig,
-  SummaryProjectStat,
+  SummaryRawDebrief,
   SummaryResult,
 } from "../types/index.ts";
+import { isDebriefText } from "./debrief-filter.ts";
 import { effectiveDateForMessage } from "./derive.service.ts";
 import { readDatabase } from "./storage.service.ts";
 
@@ -11,14 +12,6 @@ export interface SummarizeStorageInput {
   from?: string;
   to?: string;
   config?: LogWorksConfig;
-}
-
-interface MutableProjectStat {
-  project: string;
-  entries: number;
-  hours: number;
-  dateMin: string;
-  dateMax: string;
 }
 
 function inRange(date: string, from?: string, to?: string): boolean {
@@ -34,69 +27,26 @@ export async function summarizeStorage(
   const storagePath = resolveStoragePath(config);
   const database = await readDatabase(storagePath);
 
-  let rawMessages = 0;
+  const messages: SummaryRawDebrief[] = [];
   for (const message of database.rawMessages) {
     const date = effectiveDateForMessage(message);
-    if (inRange(date, input.from, input.to)) rawMessages += 1;
+    if (!inRange(date, input.from, input.to)) continue;
+    if (!isDebriefText(message.text)) continue;
+    messages.push({
+      ts: message.ts,
+      date,
+      channel: message.channel,
+      text: message.text,
+    });
   }
-
-  const projects = new Map<string, MutableProjectStat>();
-  let workLogs = 0;
-  let totalHours = 0;
-  let dateMin: string | null = null;
-  let dateMax: string | null = null;
-
-  for (const entry of database.workLogs) {
-    if (!inRange(entry.date, input.from, input.to)) continue;
-    workLogs += 1;
-    const hours = entry.hours ?? 0;
-    totalHours += hours;
-    if (dateMin === null || entry.date < dateMin) dateMin = entry.date;
-    if (dateMax === null || entry.date > dateMax) dateMax = entry.date;
-
-    const stat = projects.get(entry.project);
-    if (stat) {
-      stat.entries += 1;
-      stat.hours += hours;
-      if (entry.date < stat.dateMin) stat.dateMin = entry.date;
-      if (entry.date > stat.dateMax) stat.dateMax = entry.date;
-    } else {
-      projects.set(entry.project, {
-        project: entry.project,
-        entries: 1,
-        hours,
-        dateMin: entry.date,
-        dateMax: entry.date,
-      });
-    }
-  }
-
-  const sortedProjects: SummaryProjectStat[] = [...projects.values()].sort(
-    (a, b) => {
-      if (b.hours !== a.hours) return b.hours - a.hours;
-      return a.project.localeCompare(b.project);
-    },
+  messages.sort((a, b) =>
+    a.date === b.date ? a.ts.localeCompare(b.ts) : a.date.localeCompare(b.date),
   );
 
   return {
-    totals: {
-      rawMessages,
-      workLogs,
-      totalHours: roundHours(totalHours),
-      uniqueProjects: sortedProjects.length,
-      dateMin,
-      dateMax,
-    },
-    projects: sortedProjects.map((stat) => ({
-      ...stat,
-      hours: roundHours(stat.hours),
-    })),
+    messages,
     storagePath,
     from: input.from,
     to: input.to,
   };
-}
-
-function roundHours(value: number): number {
-  return Math.round(value * 100) / 100;
 }

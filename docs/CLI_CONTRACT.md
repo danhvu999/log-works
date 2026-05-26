@@ -62,28 +62,12 @@ Tool outputs are the same JSON shapes documented below; errors use `{ isError: t
 
 ```json
 {
-  "totals": {
-    "rawMessages": 9,
-    "workLogs": 22,
-    "totalHours": 36.5,
-    "uniqueProjects": 2,
-    "dateMin": "2026-05-18",
-    "dateMax": "2026-05-22"
-  },
-  "projects": [
+  "messages": [
     {
-      "project": "Venulog",
-      "entries": 20,
-      "hours": 27.5,
-      "dateMin": "2026-05-18",
-      "dateMax": "2026-05-21"
-    },
-    {
-      "project": "Metabase",
-      "entries": 2,
-      "hours": 9,
-      "dateMin": "2026-05-21",
-      "dateMax": "2026-05-22"
+      "ts": "1779378065.759309",
+      "date": "2026-05-21",
+      "channel": "C08SZ28DSJE",
+      "text": "Debrief:\nMetabase\n• Worked on Duplicate PostgreSQL Sync Pipeline for ClickHouse [8h]"
     }
   ],
   "storagePath": "~/.log-works/db.json",
@@ -92,7 +76,7 @@ Tool outputs are the same JSON shapes documented below; errors use `{ isError: t
 }
 ```
 
-Read-only. Aggregates the local DB. `rawMessages` is filtered with the same effective-date semantics as `derive`. `workLogs` are filtered by `entry.date`. Entries with `hours: null` count as zero hours but still bump `entries`. `projects` is sorted by `hours` desc, then `project` asc. `dateMin`/`dateMax` are `null` when the filtered set is empty.
+Read-only. Returns every raw debrief message in range. The agent (LLM) is expected to infer project names from `text` — the tool does not parse. Messages are sorted by `date` asc (ties broken by `ts`). Each message's `date` uses the same `effectiveDateForMessage` logic as `derive`. `isDebriefText` (case-insensitive `/debrief/i`) filters out anything that slipped past the fetch filter, so non-debrief / Brief-only / chatter never appears.
 
 ### `netdok tasks` JSON
 

@@ -81,5 +81,8 @@ describe("MCP wrapper", () => {
     expect(instructions).toContain("includeNonDebrief");
     expect(instructions).toMatch(/ALWAYS call log_works_unparsed/);
     expect(instructions).toContain("lastmonth");
+    expect(instructions).toContain("log_works_summary");
+    expect(instructions).toMatch(/raw text of every debrief message/);
+    expect(instructions).toMatch(/infer the canonical project-name list/);
   });
 });

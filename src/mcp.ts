@@ -104,7 +104,7 @@ After log_works_fetch or log_works_derive succeeds, inspect the optional \`netdo
 
 SMART-PARSE LOOP. After log_works_derive succeeds, ALWAYS call log_works_unparsed next — it is the canonical second step of derive, not a conditional follow-up. Do NOT gate this on \`smartParseHint\`. The hint is a status indicator (how many failures to expect from the rule parser); the loop runs whether or not the hint is present. If log_works_unparsed returns a non-empty \`messages\` array, propose structured entries (project, text, hours per bullet) to the user, confirm, then call log_works_ingest_entries to write them back as \`source: "smart"\`. If it returns an empty array, mention "no unparsed messages" briefly and move on. Skip the loop only if the user explicitly opts out.
 
-For setup or planning questions ("what projects are in my logs?", "how many hours did I log on X?"), call log_works_summary instead of exporting + post-processing. It returns aggregate counts and per-project hours straight from the local DB.`;
+log_works_summary returns the raw text of every debrief message in the local DB so the agent (you) can infer the canonical project-name list directly from the text. The rule parser is intentionally NOT involved — debrief formats vary and the LLM is better at extracting project names from unstructured prose than a strict regex. Call it: (a) right before log_works_config_setup_netdok_apply so the project mapping uses real names from the user's debriefs; (b) when the user asks "what did I write about?" / "what projects show up in my debriefs?". Do not call it as part of fetch / derive / smart-parse / netdok-sync flows that do not need a project-name catalogue.`;
 
 export function createServer(): McpServer {
   const server = new McpServer(
@@ -223,9 +223,9 @@ export function createServer(): McpServer {
   server.registerTool(
     "log_works_summary",
     {
-      title: "Summarise local database",
+      title: "Raw debrief feed for project-name inference",
       description:
-        "Aggregate locally stored work-logs into totals + per-project stats (entries, hours, date range). Use this for setup/planning questions ('what projects are in my logs?', 'how many hours per project last week?') instead of exporting and post-processing externally. Read-only.",
+        "Returns the raw text of every debrief message in the local DB (no parsing, no aggregation). Use this during Netdok setup right before log_works_config_setup_netdok_apply: the agent reads `messages[*].text` and infers the canonical project-name list from the unstructured prose, then seeds `log_works_config_setup_netdok_apply.projects` with those names. Also useful for ad-hoc 'what did I write about last week?' questions. Response: `messages: [{ ts, date, channel, text }]` sorted by date asc (ties by ts). Filter scope via from/to.",
       inputSchema: z.object({
         from: z.string().optional().describe("Start date YYYY-MM-DD inclusive"),
         to: z.string().optional().describe("End date YYYY-MM-DD inclusive"),
