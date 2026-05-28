@@ -67,6 +67,61 @@ Any other MCP client works the same way: point `command` at `log-works-mcp`, no 
 
 Config lands at `~/.log-works/config.json`. Secrets stay local; nothing is uploaded outside the Slack and Netdok APIs.
 
+## Debrief format
+
+`log_works_derive` parses each Slack message with a deterministic rule parser ([`src/services/parser.service.ts`](src/services/parser.service.ts)). Write debriefs in this shape:
+
+```
+Debrief:
+<Project>
+• <what you did> [<hours>]
+    ◦ <optional sub-detail>
+    ◦ <optional sub-detail>
+• <another entry> [<hours>]
+<Another Project>
+• <entry> [<hours>]
+```
+
+Rules:
+
+- **Section marker** — only lines under `Debrief:` are parsed. A `Brief:` line ends parsing for the rest of the message (use it for prose you don't want logged). Messages without a `Debrief:` marker are skipped entirely.
+- **Project header** — any non-bullet, non-empty line under `Debrief:` becomes the current project. Trailing `:` is stripped; a trailing `[Nh]` is stripped; `[Name]` is unwrapped to `Name`. Following bullets attach to that project until the next header.
+- **Bullet (`•`)** — one work-log entry per bullet. Attached to the most recently seen project (or `_unspecified` if none yet).
+- **Sub-bullet (`◦`)** — merged into the previous bullet's text on a new line. Sub-bullets never become their own entry.
+- **Hours** — first `[N]` or `[Nh]` token in a bullet is extracted as hours and removed from the text. Accepts `[2h]`, `[1.5h]`, `[1.5]`, `[3]`. Other bracketed text (`[Generate Quote]`, `[E2E]`) is left alone. Bullets without an hours token are still stored, but the result is flagged `partial` with `missingHours: true`.
+- **Slack links** — `<url|label>` collapses to `label`, bare `<url>` collapses to the URL. Markdown is otherwise preserved.
+- **Date hint (optional)** — `Debrief: Today`, `Debrief: Yesterday`, or `Debrief: May 4` after the marker overrides the message date for the derived entries. Unknown suffixes are ignored.
+- **Idempotent** — each entry is keyed by `${slack_ts}#${bulletIndex}`, so re-running `derive` over the same range is a no-op.
+
+Two examples — leading hours and trailing hours both work, sub-bullets group under their parent bullet, Slack links collapse to their label:
+
+```
+Debrief:
+ProjectAlpha
+• [2h] #1001 Deployed release candidate to staging and ran smoke tests.
+• [4h] #1002 Replaced legacy form flow with API-driven submission; added fallback to the old form on error.
+• [2h] #1003 Investigated multi-address picker bug; documented repro steps and impact assessment.
+```
+
+```
+Debrief:
+ProjectBeta:
+• Investigated P1 regression across two modules <https://example.com/issues/2001|#2001> [2h]
+    ◦ Checked dashboard → detail redirect
+    ◦ Checked missing dropdown on create flow
+    ◦ Checked send-action error toast
+• Fixed Bug [Generate Quote] FETCH_FAILED when order has no parent record <https://example.com/issues/2002|#2002> [1.5h]
+• Fixed Bug [Orders] long names break list table layout <https://example.com/issues/2003|#2003> [1h]
+• Finished <https://example.com/issues/2004|[Error Notif] severity tag in alerts #2004> [1.5]
+• Worked on [E2E] standardize test-id attributes across the app #2005 [1h]
+```
+
+Status codes returned per message:
+
+- `ok` — every bullet has a project and hours.
+- `partial` — bullets exist but at least one is missing a project (`_unspecified`) or hours (`missingHours`). Still inserted; surfaced so you can fix the source message.
+- `empty` — no `•` bullets found under `Debrief:`. Nothing inserted.
+
 ## Using log-works through an AI agent
 
 Once the MCP server is wired in, drive the whole workflow with natural language. The server publishes connect-time instructions describing the Slack-first setup protocol, so any compliant agent will follow the right order.
